@@ -19,7 +19,17 @@ export function Loader(){const[s,setS]=useState(true);useEffect(()=>{const t=set
 
 export function Realtime(){useEffect(()=>{const s=sb();const ch=s.channel('rt').on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},()=>window.dispatchEvent(new Event('glo-refresh'))).on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications'},()=>window.dispatchEvent(new Event('glo-refresh'))).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},()=>window.dispatchEvent(new Event('glo-refresh'))).subscribe();return()=>{s.removeChannel(ch);};},[]);return null;}
 
-export function VerifiedBadge({type}:{type:'blue'|'gold'|null}){if(!type)return null;const g=type==='gold';return <span className={`tick ${g?'gold':''}`}><svg width="15" height="15" viewBox="0 0 24 24">{g&&<defs><linearGradient id="qg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffe08a"/><stop offset=".5" stopColor="#fcca3d"/><stop offset="1" stopColor="#d99b26"/></linearGradient></defs>}<path fill={g?'url(#qg)':'#5b8def'} d="M12 2l2.4 2.4 3.3-.5 1 3.2 3 1.5-1.2 3.1L22 14l-2.2 2.6.3 3.3-3.3.8-1.8 2.9-3-1.4-3 1.4-1.8-2.9-3.3-.8.3-3.3L2 14l1.5-2.3L2.3 8.6l3-1.5 1-3.2 3.3.5z"/><path d="m9 12 2 2 4-4" stroke={g?'#241a06':'#fff'} strokeWidth="2" fill="none"/></svg></span>;}
+export function VerifiedBadge({type}:{type:'blue'|'gold'|null}){
+  if(!type)return null;
+  const g=type==='gold';
+  return <span className={`tick ${g?'gold':''}`}>
+    <svg width="15" height="15" viewBox="0 0 24 24">
+      {g&&<defs><linearGradient id="qg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#ffe08a"/><stop offset=".5" stopColor="#fcca3d"/><stop offset="1" stopColor="#d99b26"/></linearGradient></defs>}
+      <path fill={g?'url(#qg)':'#f4f4f5'} d="M12 2l2.4 2.4 3.3-.5 1 3.2 3 1.5-1.2 3.1L22 14l-2.2 2.6.3 3.3-3.3.8-1.8 2.9-3-1.4-3 1.4-1.8-2.9-3.3-.8.3-3.3L2 14l1.5-2.3L2.3 8.6l3-1.5 1-3.2 3.3.5z"/>
+      <path d="m9 12 2 2 4-4" stroke={g?'#241a06':'#0a0a0a'} strokeWidth="2" fill="none"/>
+    </svg>
+  </span>;
+}
 
 const I=(d:string)=><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={d}/></svg>;
 const AUTH_SCREENS=['notifications','messages','bookmarks','settings','profile'];
@@ -31,7 +41,6 @@ export function Shell({children}:{children:ReactNode}){
   const{screen,go}=useNav();
   const{userId,profile}=useAuth();
 
-  // auth pages = bare, no shell
   if(path==='/login'||path.startsWith('/sign')){
     return <><div className="orbs"><i className="o1"/><i className="o2"/><i className="o3"/></div>{children}</>;
   }
@@ -77,7 +86,7 @@ export function Shell({children}:{children:ReactNode}){
       <header>
         <button className={`icon-btn burger ${open?'open':''}`} onClick={()=>setOpen(!open)}><span/><span/><span/></button>
         <div className={screen==='home'?'wordmark':'page-title'}>{screen==='home'?<>Glo<i>.</i></>:T[screen]}</div>
-        <button className="compose-btn" onClick={()=>{userId?go('home'):router.push('/login');}}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button className="compose-btn" onClick={()=>{userId?go('home'):router.push('/login');}}><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" strokeWidth="2.4"><path d="M12 5v14M5 12h14"/></svg></button>
       </header>
       {children}
     </div>
