@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb, Post, Profile, Notif, Msg, timeAgo } from '@/lib/supabase';
-import { NavProvider, useNav, useAuth, VerifiedBadge } from './core';
+import { useNav, useAuth, VerifiedBadge } from './core';
 import { PostCard, Compose, Stories, AccountRow } from './widgets';
 import { logout, updateProfile } from '@/app/actions';
 
@@ -154,12 +154,8 @@ function ProfileScreen() {
         <div className="handle">@{profile.username}</div>
         <p className="bio">{profile.bio}</p>
         <div className="p-meta">
-          <span>
-            <b>{profile.following_count}</b> Following
-          </span>
-          <span>
-            <b>{profile.followers_count}</b> Followers
-          </span>
+          <span><b>{profile.following_count}</b> Following</span>
+          <span><b>{profile.followers_count}</b> Followers</span>
         </div>
       </div>
       <div id="feed">
@@ -271,24 +267,20 @@ function Settings() {
     <>
       <div className="sec-label">Account</div>
       <div className="set-card">
-        <div className="set-row">
+        <div className="set-row rise">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="8" r="4" />
             <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
           </svg>
           {profile?.username}
         </div>
-        <form action={updateProfile} className="set-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+        <form action={updateProfile} className="set-row rise" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
           <input name="display_name" defaultValue={profile?.display_name} placeholder="Display name" style={{ background: 'var(--glass)', border: '1px solid var(--gbrd)', borderRadius: 12, padding: '10px 12px', color: 'var(--text)', font: 'inherit' }} />
           <input name="bio" defaultValue={profile?.bio} placeholder="Bio" style={{ background: 'var(--glass)', border: '1px solid var(--gbrd)', borderRadius: 12, padding: '10px 12px', color: 'var(--text)', font: 'inherit' }} />
-          <button className="post-btn" type="submit">
-            Save
-          </button>
+          <button className="post-btn" type="submit">Save</button>
         </form>
-        <form action={logout} className="set-row" style={{ borderBottom: 'none' }}>
-          <button type="submit" style={{ color: '#e07a6a', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}>
-            Log out
-          </button>
+        <form action={logout} className="set-row rise" style={{ borderBottom: 'none' }}>
+          <button type="submit" style={{ color: '#e07a6a', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}>Log out</button>
         </form>
       </div>
       <div className="set-foot">Glo © 2026 · From Verve</div>
@@ -312,9 +304,5 @@ function Body() {
 }
 
 export default function App() {
-  return (
-    <NavProvider>
-      <Body />
-    </NavProvider>
-  );
+  return <Body />;
 }
