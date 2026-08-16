@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb, Post, Profile, Notif, Msg, timeAgo } from '@/lib/supabase';
 import { useNav, useAuth, VerifiedBadge } from './core';
-import { PostCard, Compose, Stories, AccountRow } from './widgets';
+import { PostCard, Compose, Stories, AccountRow, Empty } from './widgets';
 import { logout, updateProfile } from '@/app/actions';
 
 function useRefresh(fn: () => void) {
@@ -16,21 +16,23 @@ function useRefresh(fn: () => void) {
   }, []);
 }
 
+const IC = {
+  pen: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>,
+  users: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="8" r="4" /><path d="M2 21c0-4 3.1-6 7-6s7 2 7 6" /><circle cx="17.5" cy="9.5" r="3" /><path d="M22 21c0-3-1.8-4.7-4.5-5.2" /></svg>,
+  compass: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="m16 8-2.5 5.5L8 16l2.5-5.5z" /></svg>,
+  bell: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>,
+  mail: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>,
+  bm: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>,
+};
+
 function AuthPrompt() {
   const router = useRouter();
   return (
-    <div className="empty">
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="4" y="11" width="16" height="10" rx="2" />
-        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-      </svg>
-      <br />
-      This part needs an account.
-      <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'center' }}>
-        <button className="follow-btn" onClick={() => router.push('/login')}>Log in</button>
-        <button className="follow-btn on" onClick={() => router.push('/sign-up')}>Sign up</button>
-      </div>
-    </div>
+    <Empty
+      icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>}
+      title="This part needs an account"
+      sub="Log in or sign up to join the fun."
+    />
   );
 }
 
@@ -71,20 +73,25 @@ function Home() {
         <button className={`tab ${tab === 'foryou' ? 'active' : ''}`} onClick={() => setTab('foryou')}>For You</button>
         <button className={`tab ${tab === 'following' ? 'active' : ''}`} onClick={() => setTab('following')}>Following</button>
         <button className="explore-link" onClick={() => go('explore')}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="m16 8-2.5 5.5L8 16l2.5-5.5z" />
-          </svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="m16 8-2.5 5.5L8 16l2.5-5.5z" /></svg>
         </button>
         <div className="tab-line" data-tab={tab} />
       </div>
       <Stories />
       <Compose />
-      <div id="feed">
-        {list.map((p) => (
-          <PostCard key={p.id} post={p} liked={fl.liked.includes(p.id)} reposted={fl.reposted.includes(p.id)} bookmarked={fl.bookmarked.includes(p.id)} />
-        ))}
-      </div>
+      {list.length === 0 ? (
+        tab === 'following' ? (
+          <Empty icon={IC.users} title="Nothing from your follows yet" sub="Follow people in Explore and their posts will show up here." />
+        ) : (
+          <Empty icon={IC.pen} title="Nothing here yet" sub="It's quiet in here. Be the first to post something." />
+        )
+      ) : (
+        <div id="feed">
+          {list.map((p) => (
+            <PostCard key={p.id} post={p} liked={fl.liked.includes(p.id)} reposted={fl.reposted.includes(p.id)} bookmarked={fl.bookmarked.includes(p.id)} />
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -118,11 +125,15 @@ function Explore() {
         />
       </div>
       <div className="sec-label">Suggested for you</div>
-      <div id="accList">
-        {accs.map((a) => (
-          <AccountRow key={a.id} acc={a} following={following.includes(a.id)} />
-        ))}
-      </div>
+      {accs.length === 0 ? (
+        <Empty icon={IC.compass} title="No one to explore yet" sub="When people join Glo, they'll show up here." />
+      ) : (
+        <div id="accList">
+          {accs.map((a) => (
+            <AccountRow key={a.id} acc={a} following={following.includes(a.id)} />
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -145,12 +156,8 @@ function ProfileScreen() {
     <>
       <div className="cover" />
       <div className="profile-head">
-        <div className="profile-top">
-          <div className={`avatar ${profile.avatar_grad}`}>{profile.display_name[0]}</div>
-        </div>
-        <h2>
-          {profile.display_name} <VerifiedBadge type={profile.verified} />
-        </h2>
+        <div className="profile-top"><div className={`avatar ${profile.avatar_grad}`}>{profile.display_name[0]}</div></div>
+        <h2>{profile.display_name} <VerifiedBadge type={profile.verified} /></h2>
         <div className="handle">@{profile.username}</div>
         <p className="bio">{profile.bio}</p>
         <div className="p-meta">
@@ -158,11 +165,15 @@ function ProfileScreen() {
           <span><b>{profile.followers_count}</b> Followers</span>
         </div>
       </div>
-      <div id="feed">
-        {posts.map((p) => (
-          <PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked={false} />
-        ))}
-      </div>
+      {posts.length === 0 ? (
+        <Empty icon={IC.pen} title="No posts yet" sub="When you post, it'll live here." />
+      ) : (
+        <div id="feed">
+          {posts.map((p) => (
+            <PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked={false} />
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -180,15 +191,14 @@ function Notifs() {
 
   if (!userId) return <AuthPrompt />;
 
-  return (
+  return n.length === 0 ? (
+    <Empty icon={IC.bell} title="Nothing yet" sub="Likes, follows and reposts will land here." />
+  ) : (
     <>
       {n.map((x) => (
         <div key={x.id} className="notif rise">
           <div className={`notif-icon ${x.actor?.verified === 'gold' ? 'gold' : ''}`}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
-            </svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
           </div>
           <div className="notif-info">
             <b>{x.actor?.display_name}</b>
@@ -214,16 +224,15 @@ function Messages() {
 
   if (!userId) return <AuthPrompt />;
 
-  return (
+  return m.length === 0 ? (
+    <Empty icon={IC.mail} title="No messages" sub="Say hi to someone. It's free." />
+  ) : (
     <>
       {m.map((x) => (
         <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`}>
           <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>{(x.sender?.display_name || '?')[0]}</div>
           <div className="msg-info">
-            <div className="msg-top">
-              <b>{x.sender?.display_name}</b>
-              <time>{timeAgo(x.created_at)}</time>
-            </div>
+            <div className="msg-top"><b>{x.sender?.display_name}</b><time>{timeAgo(x.created_at)}</time></div>
             <p>{x.content}</p>
           </div>
           {!x.read && <span className="dot" />}
@@ -249,7 +258,9 @@ function Bookmarks() {
 
   if (!userId) return <AuthPrompt />;
 
-  return (
+  return posts.length === 0 ? (
+    <Empty icon={IC.bm} title="No bookmarks yet" sub="Save posts and find them here later." />
+  ) : (
     <div id="feed">
       {posts.map((p) => (
         <PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked />
@@ -267,20 +278,17 @@ function Settings() {
     <>
       <div className="sec-label">Account</div>
       <div className="set-card">
-        <div className="set-row rise">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
-          </svg>
+        <div className="set-row">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
           {profile?.username}
         </div>
-        <form action={updateProfile} className="set-row rise" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
-          <input name="display_name" defaultValue={profile?.display_name} placeholder="Display name" style={{ background: 'var(--glass)', border: '1px solid var(--gbrd)', borderRadius: 12, padding: '10px 12px', color: 'var(--text)', font: 'inherit' }} />
-          <input name="bio" defaultValue={profile?.bio} placeholder="Bio" style={{ background: 'var(--glass)', border: '1px solid var(--gbrd)', borderRadius: 12, padding: '10px 12px', color: 'var(--text)', font: 'inherit' }} />
+        <form action={updateProfile} className="set-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+          <input name="display_name" defaultValue={profile?.display_name} placeholder="Display name" style={{ background: '#202327', border: '1px solid transparent', borderRadius: 8, padding: '10px 12px', color: 'var(--text)', font: 'inherit' }} />
+          <input name="bio" defaultValue={profile?.bio} placeholder="Bio" style={{ background: '#202327', border: '1px solid transparent', borderRadius: 8, padding: '10px 12px', color: 'var(--text)', font: 'inherit' }} />
           <button className="post-btn" type="submit">Save</button>
         </form>
-        <form action={logout} className="set-row rise" style={{ borderBottom: 'none' }}>
-          <button type="submit" style={{ color: '#e07a6a', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}>Log out</button>
+        <form action={logout} className="set-row" style={{ borderBottom: 'none' }}>
+          <button type="submit" style={{ color: '#f4212e', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}>Log out</button>
         </form>
       </div>
       <div className="set-foot">Glo © 2026 · From Verve</div>
