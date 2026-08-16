@@ -1,7 +1,7 @@
 .act.spin svg{animation:spinIc .45s cubic-bezier(.3,.7,.3,1)}
 @keyframes spinIc{to{transform:rotate(360deg)}}
-.act.ring::after{content:'';position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 0 rgba(255,255,255,.35);animation:ringOut .5s ease-out forwards}
-@keyframes ringOut{to{box-shadow:0 0 0 14px rgba(255,255,255,0)}}
+.act.ring::after{content:'';position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 0 rgba(249,24,128,.45);animation:ringOut .5s ease-out forwards}
+@keyframes ringOut{to{box-shadow:0 0 0 14px rgba(249,24,128,0)}}
 .sv-progress{display:flex;gap:5px;padding:12px 12px 0}
 .sv-progress i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.22);position:relative;overflow:hidden}
 .sv-progress i::after{content:'';position:absolute;inset:0;background:#fff;transform:scaleX(0);transform-origin:left}
