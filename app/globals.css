@@ -17,6 +17,9 @@ a{color:inherit;text-decoration:none}
 body.lock{overflow:hidden}
 [hidden]{display:none!important}
 
+.rise{animation:rise .45s cubic-bezier(.2,.7,.3,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
 .orbs{position:fixed;inset:0;z-index:-1;overflow:hidden}
 .orbs i{position:absolute;border-radius:50%;filter:blur(90px)}
 .orbs .o1{width:420px;height:420px;background:#16335e;top:-120px;left:-140px;opacity:.4}
@@ -69,7 +72,6 @@ header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-
 .story-ring.gold{background:linear-gradient(135deg,#ffe08a,#d99b26)}
 .story-ring.you{background:var(--gbrd)}
 .story-ring .avatar{width:58px;height:58px;border:3px solid var(--bg);font-size:20px}
-.story-plus{position:absolute;bottom:0;right:0;width:20px;height:20px;border-radius:50%;background:var(--blue);border:2px solid var(--bg);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .story-name{font-size:11.5px;color:var(--dim);max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 #storyViewer{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .25s;background:#0a0a0c}
@@ -104,10 +106,8 @@ header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-
 .av-verve{background:linear-gradient(135deg,#2b303c,#9aa3b2)}
 .gold-ring{box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px var(--gold)}
 
-.post{padding:14px;border-bottom:1px solid var(--gbrd-soft);opacity:0;transition:background .2s}
+.post{padding:14px;border-bottom:1px solid var(--gbrd-soft);transition:background .2s}
 .post:hover{background:rgba(255,255,255,.02)}
-.post.rise{animation:rise .45s cubic-bezier(.2,.7,.3,1) forwards}
-@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 .post-head{display:flex;gap:12px}
 .post-body{flex:1;min-width:0}
 .post-user{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
@@ -163,7 +163,7 @@ header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-
 .search input::placeholder{color:#5a5a60}
 .sec-label{padding:16px 14px 8px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#5a5a60;font-weight:700}
 
-.account{display:flex;gap:12px;padding:14px;border-bottom:1px solid var(--gbrd-soft);align-items:center;opacity:0;transition:background .2s}
+.account{display:flex;gap:12px;padding:14px;border-bottom:1px solid var(--gbrd-soft);align-items:center;transition:background .2s}
 .account:hover{background:rgba(255,255,255,.02)}
 .account .avatar{width:46px;height:46px}
 .acc-info{flex:1;min-width:0}
@@ -175,7 +175,7 @@ header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-
 .follow-btn:active{transform:translateY(1px);filter:brightness(.9)}
 .follow-btn.on{background:transparent;color:var(--text);border-color:var(--gbrd);box-shadow:none}
 
-.notif{display:flex;gap:12px;padding:14px;border-bottom:1px solid var(--gbrd-soft);align-items:flex-start;opacity:0;transition:background .2s;cursor:pointer}
+.notif{display:flex;gap:12px;padding:14px;border-bottom:1px solid var(--gbrd-soft);align-items:flex-start;transition:background .2s;cursor:pointer}
 .notif:hover{background:rgba(255,255,255,.02)}
 .notif-icon{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .notif-icon.gold{background:var(--gold-soft);color:var(--gold)}
@@ -184,7 +184,7 @@ header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-
 .notif-info p{font-size:14px;color:#c6c6cb;margin-top:2px;line-height:1.45}
 .notif-info time{font-size:12.5px;color:var(--dim);margin-top:4px;display:block}
 
-.msg{display:flex;gap:12px;padding:14px;border-bottom:1px solid var(--gbrd-soft);cursor:pointer;opacity:0;transition:background .2s;align-items:center}
+.msg{display:flex;gap:12px;padding:14px;border-bottom:1px solid var(--gbrd-soft);cursor:pointer;transition:background .2s;align-items:center}
 .msg:hover{background:rgba(255,255,255,.02)}
 .msg-info{flex:1;min-width:0}
 .msg-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
