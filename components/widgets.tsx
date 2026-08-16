@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb, fmt, timeAgo, Post, Profile, Story } from '@/lib/supabase';
-import { toggleLike, toggleRepost, toggleBookmark, createPost, uploadMedia, toggleFollow } from '@/app/actions';
+import { toggleLike, toggleRepost, toggleBookmark, createPost, createStory, uploadMedia, toggleFollow } from '@/app/actions';
 import { VerifiedBadge, useAuth, useToast } from './core';
 
 export function Empty({ icon, title, sub }: { icon: ReactNode; title: string; sub: string }) {
@@ -68,7 +68,14 @@ export function Compose() {
   const [media, setMedia] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const left = 280 - text.length;
+
+  useEffect(() => {
+    const h = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); setTimeout(() => taRef.current?.focus(), 250); };
+    window.addEventListener('glo-compose', h);
+    return () => window.removeEventListener('glo-compose', h);
+  }, []);
 
   if (!userId) {
     return (
@@ -99,7 +106,7 @@ export function Compose() {
     <div className="compose">
       <div className={`avatar ${profile?.avatar_grad || 'av-me'}`}>{(profile?.display_name || 'A')[0]}</div>
       <div style={{ flex: 1 }}>
-        <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="What's happening?" />
+        <textarea ref={taRef} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="What's happening?" />
         {media && <img src={media} alt="" style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 12, marginTop: 6 }} />}
         <div className="compose-foot">
           <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -117,11 +124,20 @@ export function Compose() {
 export function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
   const [idx, setIdx] = useState<number | null>(null);
+  const [compose, setCompose] = useState(false);
+  const [text, setText] = useState('');
+  const [grad, setGrad] = useState('g1');
+  const [busy, setBusy] = useState(false);
   const toast = useToast();
-  const { userId } = useAuth();
+  const { userId, profile } = useAuth();
   const router = useRouter();
 
-  useEffect(() => { (async () => { const s = sb(); const { data } = await s.from('stories').select('*,profiles(*)').gt('expires_at', new Date().toISOString()).order('created_at'); setStories(data || []); })(); }, []);
+  useEffect(() => {
+    const load = async () => { const s = sb(); const { data } = await s.from('stories').select('*,profiles(*)').gt('expires_at', new Date().toISOString()).order('created_at'); setStories(data || []); };
+    load();
+    window.addEventListener('glo-refresh', load);
+    return () => window.removeEventListener('glo-refresh', load);
+  }, []);
 
   useEffect(() => {
     if (idx === null) return;
@@ -129,12 +145,33 @@ export function Stories() {
     return () => clearTimeout(t);
   }, [idx, stories.length]);
 
-  if (!stories.length) return null;
+  const mine = stories.some((s) => s.user_id === userId);
+
+  const share = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    const fd = new FormData();
+    fd.append('content', text);
+    fd.append('gradient', grad);
+    const res = await createStory(fd);
+    setBusy(false);
+    if (res && res.error) { toast(res.error); return; }
+    setCompose(false); setText('');
+    toast('Story added.');
+    window.dispatchEvent(new Event('glo-refresh'));
+  };
+
   const cur = idx !== null ? stories[idx] : null;
   return (
     <>
       <div className="stories">
-        <button className="story" onClick={() => { if (!userId) { router.push('/login'); return; } toast('Story camera coming soon.'); }}><span className="story-ring you"><span className="avatar av-me">+</span></span><span className="story-name">Your story</span></button>
+        <button className="story" onClick={() => { if (!userId) { router.push('/login'); return; } setCompose(true); }}>
+          <span className={`story-ring ${mine ? (profile?.verified === 'gold' ? 'gold' : '') : 'you'}`}>
+            <span className={`avatar ${profile?.avatar_grad || 'av-me'}`}>{userId ? (profile?.display_name || 'A')[0] : '+'}</span>
+            {!mine && <span className="story-plus">+</span>}
+          </span>
+          <span className="story-name">Your story</span>
+        </button>
         {stories.map((s, i) => (
           <button key={s.id} className="story" onClick={() => setIdx(i)}>
             <span className={`story-ring ${s.profiles?.verified === 'gold' ? 'gold' : ''}`}><span className={`avatar ${s.profiles?.avatar_grad || 'av-1'}`}>{(s.profiles?.display_name || '?')[0]}</span></span>
@@ -142,8 +179,9 @@ export function Stories() {
           </button>
         ))}
       </div>
+
       {cur && (
-        <div id="storyViewer" className="show">
+        <div id="storyViewer" className={`show ${cur.gradient || 'g1'}`}>
           <div className="sv-progress">{stories.map((_, i) => <i key={i} className={i < idx ? 'done' : i === idx ? 'live' : ''} />)}</div>
           <div className="sv-head">
             <div className={`avatar ${cur.profiles?.avatar_grad || 'av-1'}`}>{(cur.profiles?.display_name || '?')[0]}</div>
@@ -153,6 +191,18 @@ export function Stories() {
           <div className="sv-body">{cur.content}</div>
           <button className="sv-tap left" onClick={() => setIdx(Math.max(0, idx! - 1))} />
           <button className="sv-tap right" onClick={() => setIdx(idx! >= stories.length - 1 ? null : idx! + 1)} />
+        </div>
+      )}
+
+      {compose && (
+        <div className={`story-compose grad-${grad}`}>
+          <div className="sc-head">
+            <button className="icon-btn" onClick={() => setCompose(false)}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
+            <b>New story</b>
+            <button className="post-btn" disabled={busy || !text.trim()} onClick={share}>{busy ? '...' : 'Share'}</button>
+          </div>
+          <div className="sc-body"><textarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Type something..." maxLength={120} /></div>
+          <div className="sc-grads">{['g1', 'g2', 'g3', 'g4', 'g5', 'g6'].map((g) => <button key={g} className={`grad-${g} ${grad === g ? 'sel' : ''}`} onClick={() => setGrad(g)} aria-label={g} />)}</div>
         </div>
       )}
     </>
