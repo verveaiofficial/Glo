@@ -9,7 +9,7 @@ export default function Login() {
           <input name="password" type="password" placeholder="Password" required />
           <button className="post-btn" type="submit">Log in</button>
         </form>
-        <a className="auth-link" href="/signup">New to Glo? Sign up</a>
+        <a className="auth-link" href="/sign-up">New to Glo? Sign up</a>
       </div>
     </div>
   );
