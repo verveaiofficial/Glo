@@ -1,11 +1,24 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {useRouter} from 'next/navigation';
 import {sb,Post,Profile,Notif,Msg,timeAgo} from '@/lib/supabase';
 import {NavProvider,useNav,useAuth,VerifiedBadge} from './core';
 import {PostCard,Compose,Stories,AccountRow} from './widgets';
 import {logout,updateProfile} from '@/app/actions';
 
 function useRefresh(fn:()=>void){useEffect(()=>{fn();const h=()=>fn();window.addEventListener('glo-refresh',h);return()=>window.removeEventListener('glo-refresh',h);},[]);}
+
+function AuthPrompt(){
+  const router=useRouter();
+  return <div className="empty">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+    <br>This part needs an account.
+    <div style={{marginTop:16,display:'flex',gap:10,justifyContent:'center'}}>
+      <button className="follow-btn" onClick={()=>router.push('/login')}>Log in</button>
+      <button className="follow-btn on" onClick={()=>router.push('/sign-up')}>Sign up</button>
+    </div>
+  </div>;
+}
 
 function Home(){
   const{userId}=useAuth();const{go}=useNav();
@@ -30,7 +43,7 @@ function Home(){
 
 function Explore(){
   const{userId}=useAuth();const[accs,setAccs]=useState<Profile[]>([]);const[following,setFollowing]=useState<string[]>([]);
-  useRefresh(async()=>{const s=sb();const{data}=await s.from('profiles').select('*').neq('id',userId||'').order('followers_count',{ascending:false});setAccs(data||[]);const{data:f}=await s.from('follows').select('following_id').eq('follower_id',userId||'');setFollowing((f||[]).map(x=>x.following_id));});
+  useRefresh(async()=>{const s=sb();const{data}=await s.from('profiles').select('*').neq('id',userId||'').order('followers_count',{ascending:false});setAccs(data||[]);if(userId){const{data:f}=await s.from('follows').select('following_id').eq('follower_id',userId);setFollowing((f||[]).map(x=>x.following_id));}});
   return <>
     <div className="search"><input placeholder="Search people..." onInput={(e:any)=>{const q=e.target.value.toLowerCase();document.querySelectorAll('#accList .account').forEach((a:any)=>{a.style.display=a.textContent.toLowerCase().includes(q)?'':'none';});}}/></div>
     <div className="sec-label">Suggested for you</div>
@@ -40,7 +53,8 @@ function Explore(){
 
 function ProfileScreen(){
   const{userId,profile}=useAuth();const[posts,setPosts]=useState<Post[]>([]);
-  useRefresh(async()=>{const s=sb();const{data}=await s.from('posts').select('*,profiles(*)').eq('user_id',userId||'').is('parent_id',null).order('created_at',{ascending:false});setPosts(data||[]);});
+  useRefresh(async()=>{if(!userId)return;const s=sb();const{data}=await s.from('posts').select('*,profiles(*)').eq('user_id',userId).is('parent_id',null).order('created_at',{ascending:false});setPosts(data||[]);});
+  if(!userId)return <AuthPrompt/>;
   if(!profile)return null;
   return <>
     <div className="cover"/>
@@ -57,24 +71,28 @@ function ProfileScreen(){
 
 function Notifs(){
   const{userId}=useAuth();const[n,setN]=useState<Notif[]>([]);
-  useRefresh(async()=>{const s=sb();const{data}=await s.from('notifications').select('*,actor:profiles(*)').eq('user_id',userId||'').order('created_at',{ascending:false});setN(data||[]);});
+  useRefresh(async()=>{if(!userId)return;const s=sb();const{data}=await s.from('notifications').select('*,actor:profiles(*)').eq('user_id',userId).order('created_at',{ascending:false});setN(data||[]);});
+  if(!userId)return <AuthPrompt/>;
   return <>{n.map(x=><div key={x.id} className="notif rise"><div className={`notif-icon ${x.actor?.verified==='gold'?'gold':''}`}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg></div><div className="notif-info"><b>{x.actor?.display_name}</b><p>{x.type==='follow'?'followed you.':`${x.type}d your post.`}</p><time>{timeAgo(x.created_at)}</time></div></div>)}</>;
 }
 
 function Messages(){
   const{userId}=useAuth();const[m,setM]=useState<Msg[]>([]);
-  useRefresh(async()=>{const s=sb();const{data}=await s.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id',userId||'').order('created_at',{ascending:false});setM(data||[]);});
+  useRefresh(async()=>{if(!userId)return;const s=sb();const{data}=await s.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id',userId).order('created_at',{ascending:false});setM(data||[]);});
+  if(!userId)return <AuthPrompt/>;
   return <>{m.map(x=><div key={x.id} className={`msg rise ${x.read?'':'unread'}`}><div className={`avatar ${x.sender?.avatar_grad||'av-1'}`}>{(x.sender?.display_name||'?')[0]}</div><div className="msg-info"><div className="msg-top"><b>{x.sender?.display_name}</b><time>{timeAgo(x.created_at)}</time></div><p>{x.content}</p></div>{!x.read&&<span className="dot"/>}</div>)}</>;
 }
 
 function Bookmarks(){
   const{userId}=useAuth();const[posts,setPosts]=useState<Post[]>([]);
-  useRefresh(async()=>{const s=sb();const{data}=await s.from('bookmarks').select('post_id').eq('user_id',userId||'');const ids=(data||[]).map(x=>x.post_id);if(!ids.length)return setPosts([]);const{data:p}=await s.from('posts').select('*,profiles(*)').in('id',ids);setPosts(p||[]);});
+  useRefresh(async()=>{if(!userId)return;const s=sb();const{data}=await s.from('bookmarks').select('post_id').eq('user_id',userId);const ids=(data||[]).map(x=>x.post_id);if(!ids.length)return setPosts([]);const{data:p}=await s.from('posts').select('*,profiles(*)').in('id',ids);setPosts(p||[]);});
+  if(!userId)return <AuthPrompt/>;
   return <div id="feed">{posts.map(p=><PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked/>)}</div>;
 }
 
 function Settings(){
   const{userId,profile}=useAuth();
+  if(!userId)return <AuthPrompt/>;
   return <>
     <div className="sec-label">Account</div>
     <div className="set-card">
