@@ -1,0 +1,18 @@
+import { signup } from '@/app/actions';
+export default function Signup() {
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="wordmark">Glo<i>.</i></div>
+        <form action={signup} className="auth-form">
+          <input name="display_name" placeholder="Display name" required />
+          <input name="username" placeholder="Username" required />
+          <input name="email" type="email" placeholder="Email" required />
+          <input name="password" type="password" placeholder="Password" minLength={6} required />
+          <button className="post-btn" type="submit">Sign up</button>
+        </form>
+        <a className="auth-link" href="/login">Already have an account? Log in</a>
+      </div>
+    </div>
+  );
+}
