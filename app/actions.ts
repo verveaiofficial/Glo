@@ -28,6 +28,19 @@ export async function createPost(fd: FormData) {
   } catch (e: any) { return { error: e?.message || 'Unexpected error.' }; }
 }
 
+export async function createStory(fd: FormData) {
+  try {
+    const { s, user } = await uid();
+    if (!user) return { error: 'Sign in first.' };
+    const content = ((fd.get('content') as string) || '').trim();
+    if (!content) return { error: 'Story is empty.' };
+    const gradient = (fd.get('gradient') as string) || 'g1';
+    const { error } = await s.from('stories').insert({ user_id: user.id, content, gradient });
+    if (error) return { error: error.message };
+    return { ok: true };
+  } catch (e: any) { return { error: e?.message || 'Unexpected error.' }; }
+}
+
 export async function uploadMedia(fd: FormData) {
   try {
     const { s, user } = await uid(); if (!user) return null;
