@@ -61,8 +61,14 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className={`avatar ${profile?.avatar_grad || 'av-me'}`}>{userId ? (profile?.display_name || 'A')[0] : '?'}</div>
         {userId && profile ? (
           <div className="drawer-id">
-            <div className="drawer-id-left"><b>{profile.display_name} <VerifiedBadge type={profile.verified} /></b><span className="handle">@{profile.username}</span></div>
-            <div className="drawer-stats"><div><b>{profile.following_count ?? 0}</b><span>Following</span></div><div><b>{profile.followers_count ?? 0}</b><span>Followers</span></div></div>
+            <div className="drawer-id-left">
+              <b>{profile.display_name} <VerifiedBadge type={profile.verified} /></b>
+              <span className="handle">@{profile.username}</span>
+            </div>
+            <div className="drawer-stats">
+              <div><b>{profile.following_count ?? 0}</b><span>Following</span></div>
+              <div><b>{profile.followers_count ?? 0}</b><span>Followers</span></div>
+            </div>
           </div>
         ) : (
           <div className="drawer-id">
@@ -75,7 +81,7 @@ export function Shell({ children }: { children: ReactNode }) {
         )}
       </div>
       <div className="nav">
-        {item('home', 'Home', I("m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"))}
+        {item('home', 'Home', I("m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2h10a2 2 0 0 1 2 2h10a2 2 0 0 1 2-2"))}
         {item('profile', 'Profile', <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>)}
         {item('explore', 'Explore', <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>)}
         {item('notifications', 'Notifications', I("M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"))}
