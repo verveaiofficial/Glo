@@ -26,21 +26,19 @@ const IC = {
 };
 
 function AuthPrompt() {
-  const router = useRouter();
   return (
     <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />
   );
 }
 
 function TabsBar() {
-  const { screen, go, feedTab, setFeedTab } = useNav();
-  const active = screen === 'explore' ? 'explore' : feedTab;
-  const idx = active === 'foryou' ? 0 : active === 'following' ? 1 : 2;
+  const { go, feedTab, setFeedTab } = useNav();
+  const idx = feedTab === 'foryou' ? 0 : feedTab === 'following' ? 1 : 2;
   return (
     <div className="tabs tri">
       <button className={`tab ${idx === 0 ? 'active' : ''}`} onClick={() => { setFeedTab('foryou'); go('home'); }}>For You</button>
       <button className={`tab ${idx === 1 ? 'active' : ''}`} onClick={() => { setFeedTab('following'); go('home'); }}>Following</button>
-      <button className={`tab ${idx === 2 ? 'active' : ''}`} onClick={() => go('explore')}>Explore</button>
+      <button className={`tab ${idx === 2 ? 'active' : ''}`} onClick={() => { setFeedTab('explore'); go('home'); }}>Explore</button>
       <div className="tab-line" data-idx={idx} />
     </div>
   );
@@ -49,13 +47,23 @@ function TabsBar() {
 function Home() {
   const { userId } = useAuth();
   const { feedTab } = useNav();
+  
+  if (feedTab === 'explore') {
+    return (
+      <>
+        <TabsBar />
+        <Explore />
+      </>
+    );
+  }
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [fl, setFl] = useState({ liked: [] as string[], reposted: [] as string[], bookmarked: [] as string[], following: [] as string[] });
 
   const load = async () => {
     const s = sb();
     const { data } = await s.from('posts').select('*,profiles(*)').is('parent_id', null).order('created_at', { ascending: false });
-    setPosts(data || []);
+    if (data) setPosts(data);
     if (userId) {
       const [l, r, b, f] = await Promise.all([
         s.from('likes').select('post_id').eq('user_id', userId),
@@ -106,7 +114,7 @@ function Explore() {
   useRefresh(async () => {
     const s = sb();
     const { data } = await s.from('profiles').select('*').neq('id', userId || '').order('followers_count', { ascending: false });
-    setAccs(data || []);
+    if (data) setAccs(data);
     if (userId) {
       const { data: f } = await s.from('follows').select('following_id').eq('follower_id', userId);
       setFollowing((f || []).map((x) => x.following_id));
@@ -115,7 +123,6 @@ function Explore() {
 
   return (
     <>
-      <TabsBar />
       <div className="search">
         <input
           placeholder="Search people..."
@@ -170,24 +177,29 @@ function ProfileScreen() {
   const toast = useToast();
   const [tab, setTab] = useState('posts');
   const [edit, setEdit] = useState(false);
-  const [data, setData] = useState({ posts: [] as Post[], replies: [] as Post[], reposts: [] as Post[], likes: [] as Post[] });
+  const [data, setData] = useState({ 
+    posts: [] as Post[], replies: [] as Post[], reposts: [] as Post[], likes: [] as Post[],
+    rpIds: [] as string[], lkIds: [] as string[], bmIds: [] as string[]
+  });
 
   useRefresh(async () => {
     if (!userId) return;
     const s = sb();
-    const [p, r, rp, lk] = await Promise.all([
+    const [p, r, rp, lk, bm] = await Promise.all([
       s.from('posts').select('*,profiles(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
       s.from('posts').select('*,profiles(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
       s.from('reposts').select('post_id').eq('user_id', userId),
       s.from('likes').select('post_id').eq('user_id', userId),
+      s.from('bookmarks').select('post_id').eq('user_id', userId),
     ]);
     const rpIds = (rp.data || []).map((x) => x.post_id);
     const lkIds = (lk.data || []).map((x) => x.post_id);
+    const bmIds = (bm.data || []).map((x) => x.post_id);
     let reposts: Post[] = [];
     let likes: Post[] = [];
     if (rpIds.length) { const q = await s.from('posts').select('*,profiles(*)').in('id', rpIds); reposts = q.data || []; }
     if (lkIds.length) { const q = await s.from('posts').select('*,profiles(*)').in('id', lkIds); likes = q.data || []; }
-    setData({ posts: p.data || [], replies: r.data || [], reposts, likes });
+    setData({ posts: p.data || [], replies: r.data || [], reposts, likes, rpIds, lkIds, bmIds });
   });
 
   if (!userId) return <AuthPrompt />;
@@ -232,7 +244,13 @@ function ProfileScreen() {
       ) : (
         <div id="feed">
           {list.map((p) => (
-            <PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked={false} />
+            <PostCard 
+              key={p.id} 
+              post={p} 
+              liked={data.lkIds.includes(p.id)} 
+              reposted={data.rpIds.includes(p.id)} 
+              bookmarked={data.bmIds.includes(p.id)} 
+            />
           ))}
         </div>
       )}
@@ -249,7 +267,7 @@ function Notifs() {
     if (!userId) return;
     const s = sb();
     const { data } = await s.from('notifications').select('*,actor:profiles(*)').eq('user_id', userId).order('created_at', { ascending: false });
-    setN(data || []);
+    if (data) setN(data);
   });
 
   if (!userId) return <AuthPrompt />;
@@ -282,7 +300,7 @@ function Messages() {
     if (!userId) return;
     const s = sb();
     const { data } = await s.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
-    setM(data || []);
+    if (data) setM(data);
   });
 
   if (!userId) return <AuthPrompt />;
@@ -316,7 +334,7 @@ function Bookmarks() {
     const ids = (data || []).map((x) => x.post_id);
     if (!ids.length) return setPosts([]);
     const { data: p } = await s.from('posts').select('*,profiles(*)').in('id', ids);
-    setPosts(p || []);
+    if (p) setPosts(p);
   });
 
   if (!userId) return <AuthPrompt />;
@@ -359,7 +377,6 @@ function Body() {
   return (
     <div key={screen} className="screen active">
       {screen === 'home' && <Home />}
-      {screen === 'explore' && <Explore />}
       {screen === 'profile' && <ProfileScreen />}
       {screen === 'notifications' && <Notifs />}
       {screen === 'messages' && <Messages />}
