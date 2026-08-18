@@ -111,7 +111,9 @@ async function toggle(table: string, postId: string, countField: string) {
     if (countField) {
       const { data: postData } = await s.from('posts').select(countField).eq('id', postId).single();
       if (postData) {
-        const newCount = Math.max(0, (postData[countField] || 0) + (isLiked ? -1 : 1));
+        // FIX: Cast to 'any' to bypass TypeScript's strict dynamic key access error
+        const currentCount = (postData as any)[countField] || 0;
+        const newCount = Math.max(0, currentCount + (isLiked ? -1 : 1));
         await s.from('posts').update({ [countField]: newCount }).eq('id', postId);
       }
     }
@@ -136,11 +138,14 @@ export async function toggleFollow(t: string) {
 
     const { data: targetProfile } = await s.from('profiles').select('followers_count').eq('id', t).single();
     if (targetProfile) {
-      await s.from('profiles').update({ followers_count: Math.max(0, (targetProfile.followers_count || 0) + (isFollowing ? -1 : 1)) }).eq('id', t);
+      const targetCount = (targetProfile as any).followers_count || 0;
+      await s.from('profiles').update({ followers_count: Math.max(0, targetCount + (isFollowing ? -1 : 1)) }).eq('id', t);
     }
+    
     const { data: myProfile } = await s.from('profiles').select('following_count').eq('id', user.id).single();
     if (myProfile) {
-      await s.from('profiles').update({ following_count: Math.max(0, (myProfile.following_count || 0) + (isFollowing ? -1 : 1)) }).eq('id', user.id);
+      const myCount = (myProfile as any).following_count || 0;
+      await s.from('profiles').update({ following_count: Math.max(0, myCount + (isFollowing ? -1 : 1)) }).eq('id', user.id);
     }
   } catch (e) { console.error(e); }
 }
