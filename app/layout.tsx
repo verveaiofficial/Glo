@@ -7,7 +7,7 @@ import './globals.css';
 import './polish.css';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { AuthProvider, ToastProvider, NavProvider, Shell, Loader, Realtime } from '@/components/core';
+import { AuthProvider, ToastProvider, NavProvider, Shell, Loader, Realtime, RippleManager } from '@/components/core';
 
 export const metadata = { title: 'Glo' };
 
@@ -18,14 +18,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   });
   const { data: { user } } = await s.auth.getUser();
   let profile = null;
-  if (user) { 
-    const { data } = await s.from('profiles').select('*').eq('id', user.id).single(); 
-    profile = data; 
+  if (user) {
+    const { data } = await s.from('profiles').select('*').eq('id', user.id).single();
+    profile = data;
   }
-  
+
   return (
     <html lang="en" style={{ colorScheme: 'dark' }} suppressHydrationWarning>
       <body style={{ colorScheme: 'dark' }} suppressHydrationWarning>
+        <RippleManager />
         <AuthProvider userId={user?.id || null} profile={profile}>
           <ToastProvider>
             <NavProvider>
