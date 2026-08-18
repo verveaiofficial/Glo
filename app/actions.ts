@@ -1,160 +1,279 @@
 'use server';
+
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 async function server() {
   const c = await cookies();
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    cookies: { getAll: () => c.getAll(), setAll: (t) => { try { t.forEach(({ name, value, options }) => c.set(name, value, options)); } catch {} } }
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => c.getAll(),
+        setAll: (t) => {
+          try {
+            t.forEach(({ name, value, options }) => c.set(name, value, options));
+          } catch {}
+        }
+      }
+    }
+  );
+}
+
+async function uid() {
+  const s = await server();
+  const { data: { user } } = await s.auth.getUser();
+  return { s, user };
+}
+
+async function ensureProfile(s: any, user: any) {
+  if (!user) return;
+
+  const { data } = await s.from('profiles').select('id').eq('id', user.id).maybeSingle();
+  if (data) return;
+
+  const meta = user.user_metadata || {};
+  const username = meta.username || `user_${user.id.slice(0, 8)}`;
+  const display_name = meta.display_name || username;
+  const avatar_grad = 'av-' + ((user.id.charCodeAt(0) % 5) + 1);
+
+  await s.from('profiles').upsert({
+    id: user.id,
+    username,
+    display_name,
+    avatar_grad
   });
 }
 
-async function uid() { const s = await server(); const { data: { user } } = await s.auth.getUser(); return { s, user }; }
+export async function login(prevState: any, fd: FormData) {
+  const s = await server();
 
-// FIX: Added 'prevState: any' as the first argument to satisfy useFormState
-export async function login(prevState: any, fd: FormData) { 
-  const s = await server(); 
-  const { error } = await s.auth.signInWithPassword({ email: fd.get('email') as string, password: fd.get('password') as string }); 
-  if (error) return { error: error.message }; 
-  redirect('/'); 
+  const { error } = await s.auth.signInWithPassword({
+    email: fd.get('email') as string,
+    password: fd.get('password') as string
+  });
+
+  if (error) return { error: error.message };
+
+  redirect('/');
 }
 
-// FIX: Added 'prevState: any' as the first argument to satisfy useFormState
-export async function signup(prevState: any, fd: FormData) { 
-  const s = await server(); 
-  const { data: { user }, error } = await s.auth.signUp({ 
-    email: fd.get('email') as string, 
-    password: fd.get('password') as string, 
-    options: { data: { username: fd.get('username') as string, display_name: fd.get('display_name') as string } } 
-  }); 
-  if (error) return { error: error.message }; 
-  
+export async function signup(prevState: any, fd: FormData) {
+  const s = await server();
+
+  const { data: { user }, error } = await s.auth.signUp({
+    email: fd.get('email') as string,
+    password: fd.get('password') as string,
+    options: {
+      data: {
+        username: fd.get('username') as string,
+        display_name: fd.get('display_name') as string
+      }
+    }
+  });
+
+  if (error) return { error: error.message };
+
   if (user) {
     const username = (fd.get('username') as string) || user.id;
     const display_name = (fd.get('display_name') as string) || 'New User';
     const avatar_grad = 'av-' + ((user.id.charCodeAt(0) % 6) + 1);
-    const { error: pError } = await s.from('profiles').upsert({ id: user.id, username, display_name, avatar_grad });
+
+    const { error: pError } = await s.from('profiles').upsert({
+      id: user.id,
+      username,
+      display_name,
+      avatar_grad
+    });
+
     if (pError) return { error: pError.message };
   }
-  
-  redirect('/login'); 
+
+  redirect('/login');
 }
 
-export async function logout() { const s = await server(); await s.auth.signOut(); redirect('/login'); }
+export async function logout() {
+  const s = await server();
+  await s.auth.signOut();
+  redirect('/login');
+}
 
 export async function createPost(fd: FormData) {
   try {
     const { s, user } = await uid();
     if (!user) return { error: 'Sign in first.' };
+
+    await ensureProfile(s, user);
+
     const content = ((fd.get('content') as string) || '').trim();
     const media = (fd.get('media_url') as string) || null;
+
     if (!content && !media) return { error: 'Post is empty.' };
-    const { error } = await s.from('posts').insert({ user_id: user.id, content, media_url: media });
+
+    const { error } = await s.from('posts').insert({
+      user_id: user.id,
+      content,
+      media_url: media
+    });
+
     if (error) return { error: error.message };
+
     return { ok: true };
-  } catch (e: any) { return { error: e?.message || 'Unexpected error.' }; }
+  } catch (e: any) {
+    return { error: e?.message || 'Unexpected error.' };
+  }
 }
 
 export async function createStory(fd: FormData) {
   try {
     const { s, user } = await uid();
     if (!user) return { error: 'Sign in first.' };
+
+    await ensureProfile(s, user);
+
     const content = ((fd.get('content') as string) || '').trim();
     if (!content) return { error: 'Story is empty.' };
+
     const gradient = (fd.get('gradient') as string) || 'g1';
-    const { error } = await s.from('stories').insert({ user_id: user.id, content, gradient });
+
+    const { error } = await s.from('stories').insert({
+      user_id: user.id,
+      content,
+      gradient,
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+    });
+
     if (error) return { error: error.message };
+
     return { ok: true };
-  } catch (e: any) { return { error: e?.message || 'Unexpected error.' }; }
+  } catch (e: any) {
+    return { error: e?.message || 'Unexpected error.' };
+  }
 }
 
 export async function uploadMedia(fd: FormData) {
   try {
-    const { s, user } = await uid(); 
+    const { s, user } = await uid();
     if (!user) return null;
-    const f = fd.get('file') as File; 
+
+    await ensureProfile(s, user);
+
+    const f = fd.get('file') as File;
     if (!f) return null;
-    
+
     const ext = f.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg';
     const path = `${user.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`;
-    
+
     const { error } = await s.storage.from('media').upload(path, f, {
       cacheControl: '3600',
       upsert: false,
       contentType: f.type || 'image/jpeg'
     });
-    
+
     if (error) {
       console.error('Upload error:', error);
       return null;
     }
-    
+
     const { data } = await s.storage.from('media').getPublicUrl(path);
     return data.publicUrl;
-  } catch (e) { 
+  } catch (e) {
     console.error('Upload catch:', e);
-    return null; 
+    return null;
   }
 }
 
-async function toggle(table: string, postId: string, countField: string) {
+async function toggle(table: string, postId: string) {
   try {
-    const { s, user } = await uid(); if (!user) return;
-    const { data } = await s.from(table).select('*').eq('user_id', user.id).eq('post_id', postId).maybeSingle();
-    let isLiked = !!data;
-    
-    if (isLiked) {
+    const { s, user } = await uid();
+    if (!user) return;
+
+    await ensureProfile(s, user);
+
+    const { data } = await s
+      .from(table)
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('post_id', postId)
+      .maybeSingle();
+
+    if (data) {
       await s.from(table).delete().eq('user_id', user.id).eq('post_id', postId);
     } else {
       await s.from(table).insert({ user_id: user.id, post_id: postId });
     }
-    
-    if (countField) {
-      const { data: postData } = await s.from('posts').select(countField).eq('id', postId).single();
-      if (postData) {
-        // FIX: Cast to 'any' to bypass TypeScript's strict dynamic key access error
-        const currentCount = (postData as any)[countField] || 0;
-        const newCount = Math.max(0, currentCount + (isLiked ? -1 : 1));
-        await s.from('posts').update({ [countField]: newCount }).eq('id', postId);
-      }
-    }
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
 }
 
-export async function toggleLike(p: string) { await toggle('likes', p, 'likes_count'); }
-export async function toggleRepost(p: string) { await toggle('reposts', p, 'reposts_count'); }
-export async function toggleBookmark(p: string) { await toggle('bookmarks', p, ''); }
+export async function toggleLike(p: string) {
+  await toggle('likes', p);
+}
+
+export async function toggleRepost(p: string) {
+  await toggle('reposts', p);
+}
+
+export async function toggleBookmark(p: string) {
+  await toggle('bookmarks', p);
+}
 
 export async function toggleFollow(t: string) {
   try {
-    const { s, user } = await uid(); if (!user || user.id === t) return;
-    const { data } = await s.from('follows').select('*').eq('follower_id', user.id).eq('following_id', t).maybeSingle();
-    let isFollowing = !!data;
-    
-    if (isFollowing) {
+    const { s, user } = await uid();
+    if (!user || user.id === t) return;
+
+    await ensureProfile(s, user);
+
+    const { data } = await s
+      .from('follows')
+      .select('*')
+      .eq('follower_id', user.id)
+      .eq('following_id', t)
+      .maybeSingle();
+
+    if (data) {
       await s.from('follows').delete().eq('follower_id', user.id).eq('following_id', t);
     } else {
       await s.from('follows').insert({ follower_id: user.id, following_id: t });
     }
-
-    const { data: targetProfile } = await s.from('profiles').select('followers_count').eq('id', t).single();
-    if (targetProfile) {
-      const targetCount = (targetProfile as any).followers_count || 0;
-      await s.from('profiles').update({ followers_count: Math.max(0, targetCount + (isFollowing ? -1 : 1)) }).eq('id', t);
-    }
-    
-    const { data: myProfile } = await s.from('profiles').select('following_count').eq('id', user.id).single();
-    if (myProfile) {
-      const myCount = (myProfile as any).following_count || 0;
-      await s.from('profiles').update({ following_count: Math.max(0, myCount + (isFollowing ? -1 : 1)) }).eq('id', user.id);
-    }
-  } catch (e) { console.error(e); }
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 export async function updateProfile(fd: FormData) {
   try {
-    const { s, user } = await uid(); if (!user) return;
-    await s.from('profiles').update({ display_name: fd.get('display_name') as string, bio: fd.get('bio') as string }).eq('id', user.id);
-  } catch {}
+    const { s, user } = await uid();
+    if (!user) return { error: 'Sign in first.' };
+
+    await ensureProfile(s, user);
+
+    const display_name = ((fd.get('display_name') as string) || '').trim();
+    const bio = ((fd.get('bio') as string) || '').trim();
+    const avatar_url = (fd.get('avatar_url') as string) || null;
+    const banner_url = (fd.get('banner_url') as string) || null;
+
+    if (!display_name) return { error: 'Name cannot be empty.' };
+
+    const { error } = await s
+      .from('profiles')
+      .update({
+        display_name,
+        bio,
+        avatar_url,
+        banner_url
+      })
+      .eq('id', user.id);
+
+    if (error) return { error: error.message };
+
+    return { ok: true };
+  } catch (e: any) {
+    return { error: e?.message || 'Unexpected error.' };
+  }
 }
