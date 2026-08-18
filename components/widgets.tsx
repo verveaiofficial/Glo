@@ -44,11 +44,6 @@ export function PostCard({ post, liked, reposted, bookmarked }: { post: Post; li
                 const on = !lk;
                 setLk(on); setLp(lp + (on ? 1 : -1));
                 toggleLike(post.id);
-                const b = e.currentTarget;
-                b.classList.remove('spin', 'ring'); void b.offsetWidth;
-                b.classList.add('spin');
-                if (on) b.classList.add('ring');
-                setTimeout(() => b.classList.remove('ring'), 550);
               }}
             ><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg><span>{fmt(lp)}</span></button>
             <button className={`act bm ${bm ? 'on' : ''}`} onClick={() => { if (guard()) return; setBm(!bm); toggleBookmark(post.id); toast(bm ? 'Removed from bookmarks.' : 'Saved to bookmarks.'); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg></button>
@@ -182,7 +177,8 @@ export function Stories() {
 
       {cur && (
         <div id="storyViewer" className={`show ${cur.gradient || 'g1'}`}>
-          <div className="sv-progress">{stories.map((_, i) => <i key={i} className={i < idx ? 'done' : i === idx ? 'live' : ''} />)}</div>
+          {/* FIX: Added '!' to idx to satisfy TypeScript strict null checks */}
+          <div className="sv-progress">{stories.map((_, i) => <i key={i} className={i < idx! ? 'done' : i === idx! ? 'live' : ''} />)}</div>
           <div className="sv-head">
             <div className={`avatar ${cur.profiles?.avatar_grad || 'av-1'}`}>{(cur.profiles?.display_name || '?')[0]}</div>
             <b>{cur.profiles?.display_name}</b>
