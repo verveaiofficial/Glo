@@ -6,7 +6,6 @@ import { sb, Profile, Notif, timeAgo } from '@/lib/supabase';
 
 const RIPPLE_MS = 600;
 
-/* Delays every button action until the ripple fully finishes */
 export function RippleManager() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
