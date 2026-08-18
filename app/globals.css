@@ -44,7 +44,7 @@ body.lock{overflow:hidden}
 [hidden]{display:none!important}
 .orbs{display:none}
 
-/* Ripple: slower, triggered by JS class so action waits for it */
+/* Ripple: faster 0.3s */
 button::after {
   content: '';
   position: absolute;
@@ -60,7 +60,7 @@ button::after {
 }
 
 button.do-ripple::after {
-  animation: ripple 0.6s ease-out forwards;
+  animation: ripple 0.3s ease-out forwards;
 }
 
 @keyframes ripple {
@@ -279,7 +279,6 @@ header{
 .set-row > svg{color:var(--text);flex-shrink:0}
 .set-foot{padding:26px 14px;font-size:11.5px;color:#4c4c52;letter-spacing:1px;text-transform:uppercase;text-align:center}
 
-/* FIXED: cover no longer paints over the avatar */
 .cover{height:130px;background:#16181c;border-bottom:1px solid var(--gbrd-soft);position:relative;overflow:hidden;z-index:0}
 .cover-img{width:100%;height:100%;object-fit:cover}
 
@@ -292,7 +291,8 @@ header{
 .profile-head h2{font-size:20px;margin-top:12px;display:flex;align-items:center;gap:6px;letter-spacing:-.3px}
 .profile-head .handle{color:var(--dim);font-size:14px}
 .bio{font-size:14.5px;line-height:1.5;margin-top:10px}
-.bio.add-bio{color:var(--dim)}
+.bio.add-bio{color:var(--dim);cursor:pointer}
+.bio.add-bio:hover{text-decoration:underline}
 .p-meta{display:flex;gap:16px;margin-top:12px;color:var(--dim);font-size:13.5px;flex-wrap:wrap}
 .p-meta b{color:var(--text)}
 
@@ -307,7 +307,6 @@ header{
 .pempty h3{font-size:28px;font-weight:800;letter-spacing:-.5px}
 .pempty p{color:var(--dim);margin-top:6px;font-size:14.5px}
 
-/* Full-screen profile editor */
 .edit-profile{position:fixed;inset:0;z-index:86;background:var(--bg);display:flex;flex-direction:column;animation:screenIn .32s cubic-bezier(.2,.7,.3,1)}
 .edit-profile-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--gbrd-soft)}
 .edit-profile-body{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
