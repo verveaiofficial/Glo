@@ -12,14 +12,16 @@ async function server() {
 
 async function uid() { const s = await server(); const { data: { user } } = await s.auth.getUser(); return { s, user }; }
 
-export async function login(fd: FormData) { 
+// FIX: Added 'prevState: any' as the first argument to satisfy useFormState
+export async function login(prevState: any, fd: FormData) { 
   const s = await server(); 
   const { error } = await s.auth.signInWithPassword({ email: fd.get('email') as string, password: fd.get('password') as string }); 
   if (error) return { error: error.message }; 
   redirect('/'); 
 }
 
-export async function signup(fd: FormData) { 
+// FIX: Added 'prevState: any' as the first argument to satisfy useFormState
+export async function signup(prevState: any, fd: FormData) { 
   const s = await server(); 
   const { data: { user }, error } = await s.auth.signUp({ 
     email: fd.get('email') as string, 
