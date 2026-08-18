@@ -1,14 +1,35 @@
 'use client';
+
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb, fmt, timeAgo, Post, Profile, Story } from '@/lib/supabase';
-import { toggleLike, toggleRepost, toggleBookmark, createPost, createStory, uploadMedia, toggleFollow } from '@/app/actions';
+import {
+  toggleLike,
+  toggleRepost,
+  toggleBookmark,
+  createPost,
+  createStory,
+  uploadMedia,
+  toggleFollow
+} from '@/app/actions';
 import { VerifiedBadge, useAuth, useToast } from './core';
 
 export function Empty({ icon, title, sub }: { icon: ReactNode; title: string; sub: string }) {
   return (
     <div className="empty">
-      <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(255,255,255,.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', color: '#8b98a5' }}>
+      <div
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,.06)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto 14px',
+          color: '#8b98a5'
+        }}
+      >
         {icon}
       </div>
       <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>{title}</div>
@@ -17,7 +38,17 @@ export function Empty({ icon, title, sub }: { icon: ReactNode; title: string; su
   );
 }
 
-export function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: boolean; reposted: boolean; bookmarked: boolean }) {
+export function PostCard({
+  post,
+  liked,
+  reposted,
+  bookmarked
+}: {
+  post: Post;
+  liked: boolean;
+  reposted: boolean;
+  bookmarked: boolean;
+}) {
   const toast = useToast();
   const { userId } = useAuth();
   const router = useRouter();
@@ -41,7 +72,11 @@ export function PostCard({ post, liked, reposted, bookmarked }: { post: Post; li
   return (
     <article className="post rise">
       <div className="post-head">
-        <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
+        {p?.avatar_url ? (
+          <img src={p.avatar_url} alt="" className="avatar avatar-img" />
+        ) : (
+          <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
+        )}
 
         <div className="post-body">
           <div className="post-user">
@@ -56,7 +91,14 @@ export function PostCard({ post, liked, reposted, bookmarked }: { post: Post; li
             <img
               src={post.media_url}
               alt=""
-              style={{ marginTop: 12, height: 200, objectFit: 'cover', width: '100%', borderRadius: 16, border: '1px solid var(--gbrd-soft)' }}
+              style={{
+                marginTop: 12,
+                height: 200,
+                objectFit: 'cover',
+                width: '100%',
+                borderRadius: 16,
+                border: '1px solid var(--gbrd-soft)'
+              }}
             />
           )}
 
@@ -193,9 +235,13 @@ export function PostModal({ close }: { close: () => void }) {
       </div>
 
       <div className="post-modal-body">
-        <div className={`avatar ${profile?.avatar_grad || 'av-me'}`} style={{ marginBottom: 8 }}>
-          {(profile?.display_name || 'A')[0]}
-        </div>
+        {profile?.avatar_url ? (
+          <img src={profile.avatar_url} alt="" className="avatar avatar-img" style={{ marginBottom: 8 }} />
+        ) : (
+          <div className={`avatar ${profile?.avatar_grad || 'av-me'}`} style={{ marginBottom: 8 }}>
+            {(profile?.display_name || 'A')[0]}
+          </div>
+        )}
 
         <textarea
           autoFocus
@@ -206,7 +252,11 @@ export function PostModal({ close }: { close: () => void }) {
 
         {media && (
           <div style={{ position: 'relative' }}>
-            <img src={media} alt="" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 12 }} />
+            <img
+              src={media}
+              alt=""
+              style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 12 }}
+            />
             <button
               className="icon-btn"
               onClick={() => setMedia(null)}
@@ -220,7 +270,16 @@ export function PostModal({ close }: { close: () => void }) {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--gbrd-soft)' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            alignItems: 'center',
+            marginTop: 'auto',
+            paddingTop: 12,
+            borderTop: '1px solid var(--gbrd-soft)'
+          }}
+        >
           <button className="icon-btn" onClick={() => fileRef.current?.click()} aria-label="Add image">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2">
               <rect x="3" y="3" width="18" height="18" rx="3" />
@@ -328,9 +387,13 @@ export function Stories() {
           }}
         >
           <span className={`story-ring ${mine ? (profile?.verified === 'gold' ? 'gold' : '') : 'you'}`}>
-            <span className={`avatar ${profile?.avatar_grad || 'av-me'}`}>
-              {userId ? (profile?.display_name || 'A')[0] : '+'}
-            </span>
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="avatar avatar-img" />
+            ) : (
+              <span className={`avatar ${profile?.avatar_grad || 'av-me'}`}>
+                {userId ? (profile?.display_name || 'A')[0] : '+'}
+              </span>
+            )}
             {!mine && <span className="story-plus">+</span>}
           </span>
           <span className="story-name">Your story</span>
@@ -339,9 +402,13 @@ export function Stories() {
         {stories.map((s, i) => (
           <button key={s.id} className="story" onClick={() => setIdx(i)}>
             <span className={`story-ring ${s.profiles?.verified === 'gold' ? 'gold' : ''}`}>
-              <span className={`avatar ${s.profiles?.avatar_grad || 'av-1'}`}>
-                {(s.profiles?.display_name || '?')[0]}
-              </span>
+              {s.profiles?.avatar_url ? (
+                <img src={s.profiles.avatar_url} alt="" className="avatar avatar-img" />
+              ) : (
+                <span className={`avatar ${s.profiles?.avatar_grad || 'av-1'}`}>
+                  {(s.profiles?.display_name || '?')[0]}
+                </span>
+              )}
             </span>
             <span className="story-name">{s.profiles?.display_name}</span>
           </button>
@@ -357,9 +424,14 @@ export function Stories() {
           </div>
 
           <div className="sv-head">
-            <div className={`avatar ${cur.profiles?.avatar_grad || 'av-1'}`}>
-              {(cur.profiles?.display_name || '?')[0]}
-            </div>
+            {cur.profiles?.avatar_url ? (
+              <img src={cur.profiles.avatar_url} alt="" className="avatar avatar-img" />
+            ) : (
+              <div className={`avatar ${cur.profiles?.avatar_grad || 'av-1'}`}>
+                {(cur.profiles?.display_name || '?')[0]}
+              </div>
+            )}
+
             <b>{cur.profiles?.display_name}</b>
 
             <button className="icon-btn" onClick={() => setIdx(null)} aria-label="Close story">
@@ -430,9 +502,13 @@ export function AccountRow({ acc, following }: { acc: Profile; following: boolea
 
   return (
     <div className="account rise">
-      <div className={`avatar ${acc.avatar_grad} ${acc.verified === 'gold' ? 'gold-ring' : ''}`}>
-        {acc.display_name[0]}
-      </div>
+      {acc.avatar_url ? (
+        <img src={acc.avatar_url} alt="" className={`avatar avatar-img ${acc.verified === 'gold' ? 'gold-ring' : ''}`} />
+      ) : (
+        <div className={`avatar ${acc.avatar_grad} ${acc.verified === 'gold' ? 'gold-ring' : ''}`}>
+          {acc.display_name[0]}
+        </div>
+      )}
 
       <div className="acc-info">
         <div className="acc-name">
