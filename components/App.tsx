@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { sb, Post, Profile, Notif, Msg, timeAgo } from '@/lib/supabase';
+import { sb, Post, Profile, Msg, timeAgo } from '@/lib/supabase';
 import { useNav, useAuth, useToast, VerifiedBadge } from './core';
 import { PostCard, Stories, AccountRow, Empty, PostModal } from './widgets';
-import { logout, updateProfile } from '@/app/actions';
+import { logout, updateProfile, uploadMedia } from '@/app/actions';
 
 function useRefresh(fn: () => void) {
   useEffect(() => {
@@ -29,12 +29,6 @@ const IC = {
       <path d="M2 21c0-4 3.1-6 7-6s7 2 7 6" />
       <circle cx="17.5" cy="9.5" r="3" />
       <path d="M22 21c0-3-1.8-4.7-4.5-5.2" />
-    </svg>
-  ),
-  bell: (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" />
-      <path d="M13.7 21a2 2 0 0 1-3.4 0" />
     </svg>
   ),
   mail: (
@@ -91,6 +85,7 @@ function Home() {
     bookmarked: [] as string[],
     following: [] as string[]
   });
+
   const [postModal, setPostModal] = useState(false);
 
   useEffect(() => {
@@ -101,7 +96,12 @@ function Home() {
 
   const load = async () => {
     const s = sb();
-    const { data } = await s.from('posts').select('*,profiles(*)').is('parent_id', null).order('created_at', { ascending: false });
+    const { data } = await s
+      .from('posts')
+      .select('*,profiles(*)')
+      .is('parent_id', null)
+      .order('created_at', { ascending: false });
+
     if (data) setPosts(data);
 
     if (userId) {
@@ -129,41 +129,43 @@ function Home() {
     <>
       <TabsBar />
 
-      {feedTab === 'explore' ? (
-        <Explore />
-      ) : (
-        <>
-          <Stories />
+      <div key={feedTab} className="fade-in">
+        {feedTab === 'explore' ? (
+          <Explore />
+        ) : (
+          <>
+            <Stories />
 
-          {list.length === 0 ? (
-            feedTab === 'following' ? (
-              <Empty
-                icon={IC.users}
-                title="Nothing from your follows yet"
-                sub="Follow people in Explore and their posts will show up here."
-              />
-            ) : (
-              <Empty
-                icon={IC.pen}
-                title="Nothing here yet"
-                sub="It's quiet in here. Be the first to post something."
-              />
-            )
-          ) : (
-            <div id="feed">
-              {list.map((p) => (
-                <PostCard
-                  key={p.id}
-                  post={p}
-                  liked={fl.liked.includes(p.id)}
-                  reposted={fl.reposted.includes(p.id)}
-                  bookmarked={fl.bookmarked.includes(p.id)}
+            {list.length === 0 ? (
+              feedTab === 'following' ? (
+                <Empty
+                  icon={IC.users}
+                  title="Nothing from your follows yet"
+                  sub="Follow people in Explore and their posts will show up here."
                 />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+              ) : (
+                <Empty
+                  icon={IC.pen}
+                  title="Nothing here yet"
+                  sub="It's quiet in here. Be the first to post something."
+                />
+              )
+            ) : (
+              <div id="feed">
+                {list.map((p) => (
+                  <PostCard
+                    key={p.id}
+                    post={p}
+                    liked={fl.liked.includes(p.id)}
+                    reposted={fl.reposted.includes(p.id)}
+                    bookmarked={fl.bookmarked.includes(p.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {postModal && <PostModal close={() => setPostModal(false)} />}
     </>
@@ -177,7 +179,13 @@ function Explore() {
 
   useRefresh(async () => {
     const s = sb();
-    const { data } = await s.from('profiles').select('*').neq('id', userId || '').order('followers_count', { ascending: false });
+
+    const { data } = await s
+      .from('profiles')
+      .select('*')
+      .neq('id', userId || '')
+      .order('followers_count', { ascending: false });
+
     if (data) setAccs(data);
 
     if (userId) {
@@ -215,28 +223,141 @@ function Explore() {
   );
 }
 
-function EditSheet({ profile, close }: { profile: Profile; close: () => void }) {
+function EditProfile({ profile, close }: { profile: Profile; close: () => void }) {
+  const toast = useToast();
+
   const [name, setName] = useState(profile.display_name);
   const [bio, setBio] = useState(profile.bio || '');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url || null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(profile.banner_url || null);
+  const [busy, setBusy] = useState(false);
+
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file: File, type: 'avatar' | 'banner') => {
+    const fd = new FormData();
+    fd.append('file', file);
+
+    const url = await uploadMedia(fd);
+
+    if (!url) {
+      toast('Upload failed.');
+      return;
+    }
+
+    if (type === 'avatar') setAvatarUrl(url);
+    else setBannerUrl(url);
+
+    toast(type === 'avatar' ? 'Profile photo updated.' : 'Banner updated.');
+  };
 
   const save = async () => {
+    if (!name.trim()) {
+      toast('Name cannot be empty.');
+      return;
+    }
+
+    setBusy(true);
+
     const fd = new FormData();
-    fd.append('display_name', name);
-    fd.append('bio', bio);
-    await updateProfile(fd);
-    window.location.reload();
+    fd.append('display_name', name.trim());
+    fd.append('bio', bio.trim());
+
+    if (avatarUrl) fd.append('avatar_url', avatarUrl);
+    if (bannerUrl) fd.append('banner_url', bannerUrl);
+
+    const res = await updateProfile(fd);
+
+    setBusy(false);
+
+    if (res?.error) {
+      toast(res.error);
+      return;
+    }
+
+    toast('Profile saved.');
+    setTimeout(() => window.location.reload(), 650);
   };
 
   return (
-    <div className="edit-sheet" onClick={close}>
-      <div className="edit-card" onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b style={{ fontSize: 17 }}>Edit profile</b>
-          <button className="post-btn" onClick={save}>Save</button>
+    <div className="edit-profile">
+      <div className="edit-profile-head">
+        <button className="icon-btn" onClick={close} aria-label="Close">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+
+        <b>Edit profile</b>
+
+        <button className="post-btn" disabled={busy || !name.trim()} onClick={save}>
+          {busy ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+
+      <div className="edit-profile-body">
+        <div className="banner-edit">
+          {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
+
+          <button className="icon-btn" onClick={() => bannerRef.current?.click()} aria-label="Change banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <circle cx="9" cy="9" r="2" />
+              <path d="m21 15-4.5-4.5L6 21" />
+            </svg>
+          </button>
+
+          <input
+            ref={bannerRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload(f, 'banner');
+              e.target.value = '';
+            }}
+          />
         </div>
 
-        <input className="edit-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
-        <textarea className="edit-in" rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Add bio" />
+        <div className="avatar-edit-row">
+          <div className="avatar-edit">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="avatar avatar-img" />
+            ) : (
+              <div className={`avatar ${profile.avatar_grad}`}>{(name || 'A')[0]}</div>
+            )}
+
+            <button className="icon-btn" onClick={() => avatarRef.current?.click()} aria-label="Change profile photo">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="m21 15-4.5-4.5L6 21" />
+              </svg>
+            </button>
+
+            <input
+              ref={avatarRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) upload(f, 'avatar');
+                e.target.value = '';
+              }}
+            />
+          </div>
+
+          <div>
+            <b>{name}</b>
+            <div className="handle">@{profile.username}</div>
+          </div>
+        </div>
+
+        <input className="edit-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" />
+        <textarea className="edit-in" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Bio" />
       </div>
     </div>
   );
@@ -248,6 +369,7 @@ function ProfileScreen() {
 
   const [tab, setTab] = useState('posts');
   const [edit, setEdit] = useState(false);
+
   const [data, setData] = useState({
     posts: [] as Post[],
     replies: [] as Post[],
@@ -288,14 +410,30 @@ function ProfileScreen() {
       likes = q.data || [];
     }
 
-    setData({ posts: p.data || [], replies: r.data || [], reposts, likes, rpIds, lkIds, bmIds });
+    setData({
+      posts: p.data || [],
+      replies: r.data || [],
+      reposts,
+      likes,
+      rpIds,
+      lkIds,
+      bmIds
+    });
   });
 
   if (!userId) return <AuthPrompt />;
   if (!profile) return null;
 
   const joined = new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const list = tab === 'posts' ? data.posts : tab === 'replies' ? data.replies : tab === 'reposts' ? data.reposts : data.likes;
+
+  const list =
+    tab === 'posts'
+      ? data.posts
+      : tab === 'replies'
+      ? data.replies
+      : tab === 'reposts'
+      ? data.reposts
+      : data.likes;
 
   const E: Record<string, [string, string]> = {
     posts: ['No posts yet', "When you post, it'll show up here."],
@@ -306,11 +444,17 @@ function ProfileScreen() {
 
   return (
     <>
-      <div className="cover" />
+      <div className="cover">
+        {profile.banner_url ? <img src={profile.banner_url} alt="Banner" className="cover-img" /> : null}
+      </div>
 
       <div className="profile-head">
         <div className="profile-top">
-          <div className={`avatar ${profile.avatar_grad}`}>{profile.display_name[0]}</div>
+          {profile.avatar_url ? (
+            <img src={profile.avatar_url} alt="Avatar" className="avatar avatar-img" />
+          ) : (
+            <div className={`avatar ${profile.avatar_grad}`}>{profile.display_name[0]}</div>
+          )}
 
           <div className="profile-actions">
             <button
@@ -322,6 +466,7 @@ function ProfileScreen() {
             >
               Share
             </button>
+
             <button className="pbtn" onClick={() => setEdit(true)}>Edit profile</button>
           </div>
         </div>
@@ -350,12 +495,12 @@ function ProfileScreen() {
       </div>
 
       {list.length === 0 ? (
-        <div className="pempty">
+        <div className="pempty fade-in" key={tab}>
           <h3>{E[tab][0]}</h3>
           <p>{E[tab][1]}</p>
         </div>
       ) : (
-        <div id="feed">
+        <div id="feed" className="fade-in" key={tab}>
           {list.map((p) => (
             <PostCard
               key={p.id}
@@ -368,44 +513,7 @@ function ProfileScreen() {
         </div>
       )}
 
-      {edit && <EditSheet profile={profile} close={() => setEdit(false)} />}
-    </>
-  );
-}
-
-function Notifs() {
-  const { userId } = useAuth();
-  const [n, setN] = useState<Notif[]>([]);
-
-  useRefresh(async () => {
-    if (!userId) return;
-    const s = sb();
-    const { data } = await s.from('notifications').select('*,actor:profiles(*)').eq('user_id', userId).order('created_at', { ascending: false });
-    if (data) setN(data);
-  });
-
-  if (!userId) return <AuthPrompt />;
-
-  return n.length === 0 ? (
-    <Empty icon={IC.bell} title="Nothing yet" sub="Likes, follows and reposts will land here." />
-  ) : (
-    <>
-      {n.map((x) => (
-        <div key={x.id} className="notif rise">
-          <div className={`notif-icon ${x.actor?.verified === 'gold' ? 'gold' : ''}`}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
-            </svg>
-          </div>
-
-          <div className="notif-info">
-            <b>{x.actor?.display_name}</b>
-            <p>{x.type === 'follow' ? 'followed you.' : `${x.type}d your post.`}</p>
-            <time>{timeAgo(x.created_at)}</time>
-          </div>
-        </div>
-      ))}
+      {edit && <EditProfile profile={profile} close={() => setEdit(false)} />}
     </>
   );
 }
@@ -416,8 +524,14 @@ function Messages() {
 
   useRefresh(async () => {
     if (!userId) return;
+
     const s = sb();
-    const { data } = await s.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
+    const { data } = await s
+      .from('messages')
+      .select('*,sender:profiles!messages_sender_id_fkey(*)')
+      .eq('recipient_id', userId)
+      .order('created_at', { ascending: false });
+
     if (data) setM(data);
   });
 
@@ -429,7 +543,13 @@ function Messages() {
     <>
       {m.map((x) => (
         <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`}>
-          <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>{(x.sender?.display_name || '?')[0]}</div>
+          {x.sender?.avatar_url ? (
+            <img src={x.sender.avatar_url} alt="" className="avatar avatar-img" />
+          ) : (
+            <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>
+              {(x.sender?.display_name || '?')[0]}
+            </div>
+          )}
 
           <div className="msg-info">
             <div className="msg-top">
@@ -516,7 +636,6 @@ function Body() {
     <div key={screen} className="screen active">
       {screen === 'home' && <Home />}
       {screen === 'profile' && <ProfileScreen />}
-      {screen === 'notifications' && <Notifs />}
       {screen === 'messages' && <Messages />}
       {screen === 'bookmarks' && <Bookmarks />}
       {screen === 'settings' && <Settings />}
