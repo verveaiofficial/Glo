@@ -163,23 +163,34 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
     const fd = new FormData();
     fd.append('file', file);
     const url = await uploadMedia(fd);
-    if (!url) { toast('Upload failed.'); return; }
+    if (!url) {
+      toast('Upload failed.');
+      return;
+    }
     if (type === 'avatar') setAvatarUrl(url);
     else setBannerUrl(url);
     toast(type === 'avatar' ? 'Profile photo updated.' : 'Banner updated.');
   };
 
   const save = async () => {
-    if (!name.trim()) { toast('Name cannot be empty.'); return; }
+    if (!name.trim()) {
+      toast('Name cannot be empty.');
+      return;
+    }
     setBusy(true);
     const fd = new FormData();
     fd.append('display_name', name.trim());
     fd.append('bio', bio.trim());
     if (avatarUrl) fd.append('avatar_url', avatarUrl);
     if (bannerUrl) fd.append('banner_url', bannerUrl);
+    
     const res = await updateProfile(fd);
     setBusy(false);
-    if (res?.error) { toast(res.error); return; }
+    
+    if (res?.error) {
+      toast(res.error);
+      return;
+    }
     toast('Profile saved.');
     setTimeout(() => window.location.reload(), 650);
   };
@@ -188,19 +199,37 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
     <div className="edit-profile">
       <div className="edit-profile-head">
         <button className="icon-btn" onClick={close} aria-label="Close">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
         </button>
         <b>Edit profile</b>
-        <button className="post-btn" disabled={busy || !name.trim()} onClick={save}>{busy ? 'Saving...' : 'Save'}</button>
+        <button className="post-btn" disabled={busy || !name.trim()} onClick={save}>
+          {busy ? 'Saving...' : 'Save'}
+        </button>
       </div>
 
       <div className="edit-profile-body">
         <div className="banner-edit">
           {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
           <button className="icon-btn" onClick={() => bannerRef.current?.click()} aria-label="Change banner">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <circle cx="9" cy="9" r="2" />
+              <path d="m21 15-4.5-4.5L6 21" />
+            </svg>
           </button>
-          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'banner'); e.target.value = ''; }} />
+          <input
+            ref={bannerRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) upload(f, 'banner');
+              e.target.value = '';
+            }}
+          />
         </div>
 
         <div className="avatar-edit-row">
@@ -212,10 +241,24 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
             )}
 
             <button className="icon-btn" onClick={() => avatarRef.current?.click()} aria-label="Change profile photo">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="3" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="m21 15-4.5-4.5L6 21" />
+              </svg>
             </button>
 
-            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'avatar'); e.target.value = ''; }} />
+            <input
+              ref={avatarRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) upload(f, 'avatar');
+                e.target.value = '';
+              }}
+            />
           </div>
 
           <div>
