@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { usePathname, useRouter } from 'next/navigation';
 import { sb, Profile, Notif, timeAgo } from '@/lib/supabase';
 
-const RIPPLE_MS = 600;
+const RIPPLE_MS = 300;
 
 export function RippleManager() {
   useEffect(() => {
