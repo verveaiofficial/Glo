@@ -44,7 +44,6 @@ body.lock{overflow:hidden}
 [hidden]{display:none!important}
 .orbs{display:none}
 
-/* Ripple: faster 0.3s */
 button::after {
   content: '';
   position: absolute;
@@ -229,6 +228,10 @@ header{
 .nav-item.active{font-weight:800}
 .nav-item .q-ic{color:var(--gold)}
 .nav-item .ext{margin-left:auto;width:15px;height:15px;color:var(--dim)}
+
+/* FIX: Quix image size */
+.q-img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0}
+
 .badge{position:absolute;right:14px;background:var(--blue);color:#fff;font-size:11px;font-weight:700;min-width:19px;height:19px;border-radius:9999px;display:flex;align-items:center;justify-content:center;padding:0 5px}
 .nav-item .badge{position:static;margin-left:auto}
 .drawer-foot{padding:16px 18px;border-top:1px solid var(--gbrd-soft);font-size:11.5px;color:#4c4c52;letter-spacing:1px;text-transform:uppercase}
@@ -288,12 +291,13 @@ header{
 .profile-actions{display:flex;gap:8px;padding-bottom:4px}
 .pbtn{padding:8px 16px;border-radius:9999px;border:1px solid #536471;font-weight:700;font-size:13.5px;transition:background .2s ease}
 .pbtn:hover{background:var(--glass)}
+.pbtn.on{background:var(--blue);color:#fff;border-color:var(--blue)}
 .profile-head h2{font-size:20px;margin-top:12px;display:flex;align-items:center;gap:6px;letter-spacing:-.3px}
 .profile-head .handle{color:var(--dim);font-size:14px}
 .bio{font-size:14.5px;line-height:1.5;margin-top:10px}
 .bio.add-bio{color:var(--dim);cursor:pointer}
 .bio.add-bio:hover{text-decoration:underline}
-.p-meta{display:flex;gap:16px;margin-top:12px;color:var(--dim);font-size:13.5px;flex-wrap:wrap}
+.p-meta{display:flex;gap:16px;margin-top:12px;color:var(--dim);font-size:13.5px;flex-wrap:wrap;align-items:center}
 .p-meta b{color:var(--text)}
 
 .ptabs{display:flex;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--gbrd-soft)}
@@ -319,6 +323,11 @@ header{
 .avatar-edit .icon-btn{position:absolute;right:0;bottom:0;background:var(--blue)}
 .edit-in{background:#202327;border:1px solid transparent;border-radius:8px;padding:12px;color:var(--text);font:inherit;outline:none;resize:none;transition:border-color .2s ease, background .2s ease}
 .edit-in:focus{border-color:var(--blue);background:transparent}
+
+/* Follow/Followers Sheet Styles */
+.sheet{position:fixed;inset:0;z-index:88;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center}
+.sheet-card{background:#000;border:1px solid var(--gbrd-soft);border-radius:16px;width:min(320px,90vw);max-height:70vh;display:flex;flex-direction:column;overflow:hidden}
+.sheet-list{flex:1;overflow-y:auto}
 
 .empty{padding:56px 24px;text-align:center;color:var(--dim);font-size:14.5px;line-height:1.6}
 
