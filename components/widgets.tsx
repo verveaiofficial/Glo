@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { sb, fmt, timeAgo, Post, Profile, Story } from '@/lib/supabase';
 import { toggleLike, toggleRepost, toggleBookmark, createPost, createStory, uploadMedia, toggleFollow } from '@/app/actions';
-import { VerifiedBadge, useAuth, useToast } from './core';
+import { VerifiedBadge, useAuth, useToast, useNav } from './core';
 
 export function Empty({ icon, title, sub }: { icon: ReactNode; title: string; sub: string }) {
   return (
@@ -20,6 +20,7 @@ export function PostCard({ post, liked, reposted, bookmarked }: { post: Post; li
   const toast = useToast();
   const { userId } = useAuth();
   const router = useRouter();
+  const { openUser } = useNav();
   const [lk, setLk] = useState(liked);
   const [lp, setLp] = useState(post.likes_count);
   const [rp, setRp] = useState(reposted);
@@ -32,13 +33,25 @@ export function PostCard({ post, liked, reposted, bookmarked }: { post: Post; li
   return (
     <article className="post rise">
       <div className="post-head">
-        {p?.avatar_url ? (
-          <img src={p.avatar_url} alt="" className="avatar avatar-img" />
-        ) : (
-          <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
-        )}
+        <button
+          className="avatar"
+          style={{ background: p?.avatar_url ? 'transparent' : undefined, padding: 0 }}
+          onClick={() => { if (p) openUser(p.id, p.username); }}
+        >
+          {p?.avatar_url ? (
+            <img src={p.avatar_url} alt="" className="avatar-img" />
+          ) : (
+            <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
+          )}
+        </button>
         <div className="post-body">
-          <div className="post-user"><b>{p?.display_name}</b><VerifiedBadge type={p?.verified || null} /><span>@{p?.username} · {timeAgo(post.created_at)}</span></div>
+          <div className="post-user">
+            <button style={{ background: 'none', border: 'none', color: 'inherit', font: 'inherit', fontWeight: 700, fontSize: 15, padding: 0, cursor: 'pointer' }} onClick={() => { if (p) openUser(p.id, p.username); }}>
+              {p?.display_name}
+            </button>
+            <VerifiedBadge type={p?.verified || null} />
+            <span>@{p?.username} · {timeAgo(post.created_at)}</span>
+          </div>
           <div className="post-text">{post.content}</div>
           {post.media_url && <img src={post.media_url} alt="" style={{ marginTop: 12, height: 200, objectFit: 'cover', width: '100%', borderRadius: 16, border: '1px solid var(--gbrd-soft)' }} />}
           <div className="actions">
@@ -83,7 +96,7 @@ export function PostModal({ close }: { close: () => void }) {
     fd.append('file', f);
     const url = await uploadMedia(fd);
     if (url) setMedia(url);
-    else toast('Upload failed.');
+    else toast('Upload failed. Check storage settings.');
   };
 
   const submit = async () => {
@@ -138,7 +151,6 @@ export function PostModal({ close }: { close: () => void }) {
   );
 }
 
-/* Stories grouped per user, Instagram-style */
 export function Stories() {
   const [stories, setStories] = useState<Story[]>([]);
   const [view, setView] = useState<{ g: number; i: number } | null>(null);
@@ -148,6 +160,7 @@ export function Stories() {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const { userId, profile } = useAuth();
+  const { openUser } = useNav();
   const router = useRouter();
 
   useEffect(() => {
@@ -269,8 +282,8 @@ export function Stories() {
             ) : (
               <div className={`avatar ${cur.profiles?.avatar_grad || 'av-1'}`}>{(cur.profiles?.display_name || '?')[0]}</div>
             )}
-            <b>{cur.profiles?.display_name}</b>
-            <button className="icon-btn" onClick={() => setView(null)} aria-label="Close story">
+            <b onClick={() => { setView(null); if (cur.profiles) openUser(cur.profiles.id, cur.profiles.username); }}>{cur.profiles?.display_name}</b>
+            <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setView(null); }} aria-label="Close story">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
           </div>
@@ -308,15 +321,18 @@ export function AccountRow({ acc, following }: { acc: Profile; following: boolea
   const toast = useToast();
   const { userId } = useAuth();
   const router = useRouter();
+  const { openUser } = useNav();
 
   return (
     <div className="account rise">
-      {acc.avatar_url ? (
-        <img src={acc.avatar_url} alt="" className={`avatar avatar-img ${acc.verified === 'gold' ? 'gold-ring' : ''}`} />
-      ) : (
-        <div className={`avatar ${acc.avatar_grad} ${acc.verified === 'gold' ? 'gold-ring' : ''}`}>{acc.display_name[0]}</div>
-      )}
-      <div className="acc-info">
+      <button style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={() => openUser(acc.id, acc.username)}>
+        {acc.avatar_url ? (
+          <img src={acc.avatar_url} alt="" className={`avatar avatar-img ${acc.verified === 'gold' ? 'gold-ring' : ''}`} />
+        ) : (
+          <div className={`avatar ${acc.avatar_grad} ${acc.verified === 'gold' ? 'gold-ring' : ''}`}>{acc.display_name[0]}</div>
+        )}
+      </button>
+      <div className="acc-info" style={{ cursor: 'pointer' }} onClick={() => openUser(acc.id, acc.username)}>
         <div className="acc-name"><b>{acc.display_name}</b><VerifiedBadge type={acc.verified} /></div>
         <div className="acc-handle">@{acc.username}</div>
         <div className="acc-bio">{acc.bio}</div>
