@@ -16,9 +16,9 @@ body.lock{overflow:hidden}[hidden]{display:none!important}.orbs{display:none}
 button::after{content:'';position:absolute;top:50%;left:50%;width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.18);transform:translate(-50%,-50%) scale(0);opacity:0;pointer-events:none}
 button.do-ripple::after{animation:ripple .3s ease-out forwards}
 @keyframes ripple{0%{transform:translate(-50%,-50%) scale(0);opacity:1}100%{transform:translate(-50%,-50%) scale(32);opacity:0}}
-.rise{animation:rise .35s cubic-bezier(.2,.7,.3,1) both}
+.rise{animation:rise .35s cubic-bezier(.2,.7,.3,1) backwards}
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-.fade-in{animation:fadeIn .35s cubic-bezier(.2,.7,.3,1) both}
+.fade-in{animation:fadeIn .35s cubic-bezier(.2,.7,.3,1) backwards}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 #loader{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;transition:opacity .35s ease}
 #loader.hide{opacity:0;pointer-events:none}
@@ -72,13 +72,13 @@ header{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-
 #storyViewer.g6,.grad-g6{background:linear-gradient(160deg,#0d0a10,#18121c)}
 #storyViewer{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;opacity:0;pointer-events:none;transition:opacity .28s ease}
 #storyViewer.show{opacity:1;pointer-events:auto}
-.sv-progress{display:flex;gap:5px;padding:12px 12px 0}
+.sv-progress{display:flex;gap:5px;padding:12px 12px 0;position:relative;z-index:3}
 .sv-progress i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.22);position:relative;overflow:hidden}
 .sv-progress i::after{content:'';position:absolute;inset:0;background:#fff;transform:scaleX(0);transform-origin:left}
 .sv-progress i.done::after{transform:scaleX(1)}
 .sv-progress i.live::after{animation:sprog 5s linear forwards}
 @keyframes sprog{to{transform:scaleX(1)}}
-.sv-head{display:flex;align-items:center;gap:10px;padding:12px;background:rgba(0,0,0,.6)}
+.sv-head{display:flex;align-items:center;gap:10px;padding:12px;background:rgba(0,0,0,.6);position:relative;z-index:3}
 .sv-head .avatar{width:38px;height:38px}
 .sv-head b{flex:1;font-size:14.5px;cursor:pointer}
 .sv-head b:hover{text-decoration:underline}
