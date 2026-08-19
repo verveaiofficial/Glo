@@ -252,4 +252,101 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
 
       <div className="edit-profile-body">
         <div className="banner-edit">
-          {bannerUrl ? <img src={bannerUrl} alt="
+          {bannerUrl ? <img           {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
+          <button className="icon-btn" onClick={() => bannerRef.current?.click()} aria-label="Change banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg>
+          </button>
+          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'banner'); e.target.value = ''; }} />
+        </div>
+
+        <div className="avatar-edit-row">
+          <div className="avatar-edit">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="Avatar" className="avatar avatar-img" />
+            ) : (
+              <div className={`avatar ${profile.avatar_grad}`}>{(name || 'A')[0]}</div>
+            )}
+            <button className="icon-btn" onClick={() => avatarRef.current?.click()} aria-label="Change profile photo">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg>
+            </button>
+            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'avatar'); e.target.value = ''; }} />
+          </div>
+          <div>
+            <b>{name}</b>
+            <div style={{ color: 'var(--dim)', fontSize: 13.5 }}>@{profile.username}</div>
+          </div>
+        </div>
+
+        <input className="edit-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" />
+        <textarea className="edit-in" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Bio" />
+      </div>
+    </div>
+  );
+}
+
+function ProfileScreen() {
+  const { userId, profile } = useAuth();
+  const toast = useToast();
+  const [tab, setTab] = useState('posts');
+  const [edit, setEdit] = useState(false);
+  const [listType, setListType] = useState<null | 'following' | 'followers'>(null);
+  const [me, setMe] = useState<Profile | null>(profile);
+  const [data, setData] = useState({
+    posts: [] as Post[], replies: [] as Post[], reposts: [] as Post[], likes: [] as Post[],
+    rpIds: [] as string[], lkIds: [] as string[], bmIds: [] as string[]
+  });
+
+  useEffect(() => {
+    if (!userId) return;
+    const load = async () => {
+      const s = sb();
+      const { data: d } = await s.from('profiles').select('*').eq('id', userId).single();
+      if (d) setMe(d);
+    };
+    load();
+    window.addEventListener('glo-refresh', load);
+    return () => window.removeEventListener('glo-refresh', load);
+  }, [userId]);
+
+  useRefresh(async () => {
+    if (!userId) return;
+    const s = sb();
+    const [p, r, rp, lk, bm] = await Promise.all([
+      s.from('posts').select('*,profiles(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
+      s.from('posts').select('*,profiles(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
+      s.from('reposts').select('post_id').eq('user_id', userId),
+      s.from('likes').select('post_id').eq('user_id', userId),
+      s.from('bookmarks').select('post_id').eq('user_id', userId),
+    ]);
+    const rpIds = (rp.data || []).map((x) => x.post_id);
+    const lkIds = (lk.data || []).map((x) => x.post_id);
+    const bmIds = (bm.data || []).map((x) => x.post_id);
+    let reposts: Post[] = [];
+    let likes: Post[] = [];
+    if (rpIds.length) { const q = await s.from('posts').select('*,profiles(*)').in('id', rpIds); reposts = q.data || []; }
+    if (lkIds.length) { const q = await s.from('posts').select('*,profiles(*)').in('id', lkIds); likes = q.data || []; }
+    setData({ posts: p.data || [], replies: r.data || [], reposts, likes, rpIds, lkIds, bmIds });
+  });
+
+  if (!userId) return <AuthPrompt />;
+  if (!me) return null;
+
+  const joined = new Date(me.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const list = tab === 'posts' ? data.posts : tab === 'replies' ? data.replies : tab === 'reposts' ? data.reposts : data.likes;
+  const E: Record<string, [string, string]> = {
+    posts: ['No posts yet', "When you post, it'll show up here."],
+    replies: ['Nothing to see here — yet.', 'Replies will show up here.'],
+    reposts: ['Nothing to see here — yet.', 'Reposts will show up here.'],
+    likes: ['Nothing to see here — yet.', 'Posts you like will show up here.'],
+  };
+
+  return (
+    <>
+      <div className="cover">
+        {me.banner_url ? <img src={me.banner_url} alt="Banner" className="cover-img" /> : null}
+      </div>
+
+      <div className="profile-head">
+        <div className="profile-top">
+          {me.avatar_url ? (
+            <img src={me.avatar_url} alt="Avatar" className="avatar
