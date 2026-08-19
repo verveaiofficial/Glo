@@ -252,7 +252,7 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
 
       <div className="edit-profile-body">
         <div className="banner-edit">
-          {bannerUrl ? <img           {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
+          {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
           <button className="icon-btn" onClick={() => bannerRef.current?.click()} aria-label="Change banner">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg>
           </button>
@@ -349,4 +349,232 @@ function ProfileScreen() {
       <div className="profile-head">
         <div className="profile-top">
           {me.avatar_url ? (
-            <img src={me.avatar_url} alt="Avatar" className="avatar
+            <img src={me.avatar_url} alt="Avatar" className="avatar avatar-img" />
+          ) : (
+            <div className={`avatar ${me.avatar_grad}`}>{me.display_name[0]}</div>
+          )}
+          <div className="profile-actions">
+            <button className="pbtn" onClick={() => { navigator.clipboard?.writeText(window.location.href); toast('Link copied.'); }}>Share</button>
+            <button className="pbtn" onClick={() => setEdit(true)}>Edit profile</button>
+          </div>
+        </div>
+        <h2>{me.display_name} <VerifiedBadge type={me.verified} /></h2>
+        <div className="handle">@{me.username}</div>
+        {me.bio ? <p className="bio">{me.bio}</p> : <p className="bio add-bio" onClick={() => setEdit(true)}>Add bio</p>}
+        <div className="p-meta">
+          <span>Joined {joined}</span>
+          <button className="pbtn" onClick={() => setListType('following')} style={{ cursor: 'pointer' }}><b>{me.following_count}</b> Following</button>
+          <button className="pbtn" onClick={() => setListType('followers')} style={{ cursor: 'pointer' }}><b>{me.followers_count}</b> Followers</button>
+        </div>
+      </div>
+
+      <div className="ptabs">
+        {(['posts', 'replies', 'reposts', 'likes'] as const).map((t) => (
+          <button key={t} className={`ptab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>
+        ))}
+      </div>
+
+      {list.length === 0 ? (
+        <div className="pempty fade-in" key={tab}>
+          <h3>{E[tab][0]}</h3>
+          <p>{E[tab][1]}</p>
+        </div>
+      ) : (
+        <div id="feed" className="fade-in" key={tab}>
+          {list.map((p) => (
+            <PostCard key={p.id} post={p} liked={data.lkIds.includes(p.id)} reposted={data.rpIds.includes(p.id)} bookmarked={data.bmIds.includes(p.id)} />
+          ))}
+        </div>
+      )}
+
+      {edit && <EditProfile profile={me} close={() => setEdit(false)} />}
+      {listType && <FollowList id={userId} type={listType} close={() => setListType(null)} />}
+    </>
+  );
+}
+
+function UserScreen() {
+  const { viewId } = useNav();
+  const { userId } = useAuth();
+  const toast = useToast();
+  const [user, setUser] = useState<Profile | null>(null);
+  const [following, setFollowing] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  useEffect(() => {
+    if (!viewId) return;
+    (async () => {
+      const s = sb();
+      const { data: u } = await s.from('profiles').select('*').eq('id', viewId).single();
+      if (u) setUser(u);
+      const { data: f } = await s.from('follows').select('*').eq('follower_id', userId || '').eq('following_id', viewId).maybeSingle();
+      setFollowing(!!f);
+      const { data: p } = await s.from('posts').select('*,profiles(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
+      if (p) setPosts(p);
+    })();
+  }, [viewId, userId]);
+
+  if (!user) return null;
+
+  const handleFollow = async () => {
+    if (!userId) { toast('Log in to follow.'); return; }
+    await fetch('/api/follow', { method: 'POST', body: JSON.stringify({ target: viewId, follow: !following }), headers: { 'Content-Type': 'application/json' } });
+    setFollowing(!following);
+    toast(following ? `Unfollowed ${user.display_name}.` : `Following ${user.display_name}.`);
+    window.dispatchEvent(new Event('glo-refresh'));
+  };
+
+  const joined = new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  return (
+    <>
+      <div className="cover">
+        {user.banner_url ? <img src={user.banner_url} alt="Banner" className="cover-img" /> : null}
+      </div>
+      <div className="profile-head">
+        <div className="profile-top">
+          {user.avatar_url ? (
+            <img src={user.avatar_url} alt="Avatar" className="avatar avatar-img" />
+          ) : (
+            <div className={`avatar ${user.avatar_grad}`}>{user.display_name[0]}</div>
+          )}
+          <div className="profile-actions">
+            <button className="pbtn" onClick={() => { navigator.clipboard?.writeText(window.location.href); toast('Link copied.'); }}>Share</button>
+            {userId && userId !== viewId && (
+              <button className={`pbtn ${following ? 'on' : ''}`} onClick={handleFollow}>{following ? 'Following' : 'Follow'}</button>
+            )}
+          </div>
+        </div>
+        <h2>{user.display_name} <VerifiedBadge type={user.verified} /></h2>
+        <div className="handle">@{user.username}</div>
+        {user.bio ? <p className="bio">{user.bio}</p> : <p className="bio">No bio yet.</p>}
+        <div className="p-meta">
+          <span>Joined {joined}</span>
+          <span><b>{user.following_count}</b> Following</span>
+          <span><b>{user.followers_count}</b> Followers</span>
+        </div>
+      </div>
+      <div className="ptabs">
+        <button className="ptab active">Posts</button>
+      </div>
+      {posts.length === 0 ? (
+        <div className="pempty"><h3>No posts yet</h3><p>When they post, it'll show up here.</p></div>
+      ) : (
+        <div id="feed">{posts.map((p) => (<PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked={false} />))}</div>
+      )}
+    </>
+  );
+}
+
+function QuixPage() {
+  return (
+    <div style={{ position: 'fixed', top: 60, left: 0, right: 0, bottom: 0, background: '#000' }}>
+      <iframe src="https://chat-quix.vercel.app" style={{ width: '100%', height: '100%', border: 'none' }} />
+    </div>
+  );
+}
+
+function Messages() {
+  const { userId } = useAuth();
+  const [m, setM] = useState<Msg[]>([]);
+
+  useRefresh(async () => {
+    if (!userId) return;
+    const s = sb();
+    const { data } = await s.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
+    if (data) setM(data);
+  });
+
+  if (!userId) return <AuthPrompt />;
+
+  return m.length === 0 ? (
+    <Empty icon={IC.mail} title="No messages" sub="Say hi to someone. It's free." />
+  ) : (
+    <>
+      {m.map((x) => (
+        <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`}>
+          {x.sender?.avatar_url ? (
+            <img src={x.sender.avatar_url} alt="" className="avatar avatar-img" />
+          ) : (
+            <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>{(x.sender?.display_name || '?')[0]}</div>
+          )}
+          <div className="msg-info">
+            <div className="msg-top">
+              <b>{x.sender?.display_name}</b>
+              <time>{timeAgo(x.created_at)}</time>
+            </div>
+            <p>{x.content}</p>
+          </div>
+          {!x.read && <span className="dot" />}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function Bookmarks() {
+  const { userId } = useAuth();
+  const [posts, setPosts] = useState<Post[]>([]);
+
+  useRefresh(async () => {
+    if (!userId) return;
+    const s = sb();
+    const { data } = await s.from('bookmarks').select('post_id').eq('user_id', userId);
+    const ids = (data || []).map((x) => x.post_id);
+    if (!ids.length) { setPosts([]); return; }
+    const { data: p } = await s.from('posts').select('*,profiles(*)').in('id', ids);
+    if (p) setPosts(p);
+  });
+
+  if (!userId) return <AuthPrompt />;
+
+  return posts.length === 0 ? (
+    <Empty icon={IC.bm} title="No bookmarks yet" sub="Save posts and find them here later." />
+  ) : (
+    <div id="feed">
+      {posts.map((p) => (
+        <PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked />
+      ))}
+    </div>
+  );
+}
+
+function Settings() {
+  const { userId, profile } = useAuth();
+  if (!userId) return <AuthPrompt />;
+
+  return (
+    <>
+      <div className="sec-label">Account</div>
+      <div className="set-card">
+        <div className="set-row">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>
+          {profile?.username}
+        </div>
+        <form action={logout} className="set-row" style={{ borderBottom: 'none' }}>
+          <button type="submit" style={{ color: '#f4212e', background: 'none', border: 'none', font: 'inherit', cursor: 'pointer' }}>Log out</button>
+        </form>
+      </div>
+      <div className="set-foot">Glo © 2026 · From Verve</div>
+    </>
+  );
+}
+
+function Body() {
+  const { screen, viewId } = useNav();
+  return (
+    <div key={screen} className="screen active">
+      {screen === 'home' && <Home />}
+      {screen === 'profile' && <ProfileScreen />}
+      {screen === 'user' && viewId && <UserScreen />}
+      {screen === 'quix' && <QuixPage />}
+      {screen === 'messages' && <Messages />}
+      {screen === 'bookmarks' && <Bookmarks />}
+      {screen === 'settings' && <Settings />}
+    </div>
+  );
+}
+
+export default function App() {
+  return <Body />;
+}
