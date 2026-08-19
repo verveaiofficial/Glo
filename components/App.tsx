@@ -358,7 +358,6 @@ function UserScreen() {
       const { data: p } = await s.from('posts').select('*,profiles(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
       if (p) setData(d => ({ ...d, posts: p }));
 
-      // FIX: rp is already the array, no need for .data
       const { data: rp } = await s.from('reposts').select('post_id').eq('user_id', viewId);
       const rpIds = (rp || []).map(x => x.post_id);
 
@@ -381,7 +380,7 @@ function UserScreen() {
     return () => window.removeEventListener('glo-unfollow', h);
   }, [viewId, toast]);
 
-  if (!user) return null;
+  if (!user || !viewId) return null;
 
   const handleFollow = async () => {
     if (!userId) { toast('Log in to follow.'); return; }
