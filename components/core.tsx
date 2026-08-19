@@ -4,44 +4,20 @@ import { createContext, useContext, useState, useCallback, useEffect, ReactNode 
 import { usePathname, useRouter } from 'next/navigation';
 import { sb, Profile, Notif, timeAgo } from '@/lib/supabase';
 
-const RIPPLE_MS = 300;
-
+/* Ripple plays instantly, NO delay on the action */
 export function RippleManager() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      const anyE = e as any;
-      if (anyE.__gloReplay) return;
-
       const btn = (e.target as HTMLElement).closest('button');
       if (!btn || btn.disabled) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-
       btn.classList.remove('do-ripple');
       void btn.offsetWidth;
       btn.classList.add('do-ripple');
-
-      window.setTimeout(() => {
-        btn.classList.remove('do-ripple');
-
-        const replay: any = new MouseEvent('click', { bubbles: true, cancelable: true });
-        replay.__gloReplay = true;
-        btn.dispatchEvent(replay);
-
-        if (btn.type === 'submit') {
-          const form = btn.closest('form');
-          if (form) {
-            try { (form as any).requestSubmit(btn); } catch { form.submit(); }
-          }
-        }
-      }, RIPPLE_MS);
+      setTimeout(() => btn.classList.remove('do-ripple'), 400);
     };
-
     document.addEventListener('click', handler, true);
     return () => document.removeEventListener('click', handler, true);
   }, []);
-
   return null;
 }
 
@@ -64,14 +40,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 }
 export const useToast = () => useContext(ToastCtx);
 
-const NavCtx = createContext<{ screen: string; go: (s: string) => void; feedTab: string; setFeedTab: (t: string) => void }>({
-  screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}
-});
+const NavCtx = createContext<{
+  screen: string; go: (s: string) => void;
+  feedTab: string; setFeedTab: (t: string) => void;
+  viewId: string | null; openUser: (id: string) => void;
+}>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, openUser: () => {} });
+
 export function NavProvider({ children }: { children: ReactNode }) {
   const [screen, set] = useState('home');
   const [feedTab, setFeedTab] = useState('foryou');
-  const go = useCallback((s: string) => set(s), []);
-  return <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab }}>{children}</NavCtx.Provider>;
+  const [viewId, setViewId] = useState<string | null>(null);
+  const go = useCallback((s: string) => { set(s); if (s !== 'user') setViewId(null); }, []);
+  const openUser = useCallback((id: string) => { setViewId(id); set('user'); }, []);
+  return <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, openUser }}>{children}</NavCtx.Provider>;
 }
 export const useNav = () => useContext(NavCtx);
 
@@ -125,6 +106,13 @@ export function VerifiedBadge({ type }: { type: 'blue' | 'gold' | null }) {
 
 const I = (d: string) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={d} /></svg>
+);
+
+const GEAR = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
 );
 
 const AUTH_SCREENS = ['messages', 'bookmarks', 'settings', 'profile'];
@@ -186,11 +174,25 @@ export function Shell({ children }: { children: ReactNode }) {
   const { screen, go } = useNav();
   const { userId, profile } = useAuth();
 
+  /* live profile so follower counts update instantly */
+  const [me, setMe] = useState(profile);
+  useEffect(() => {
+    if (!userId) { setMe(profile); return; }
+    const load = async () => {
+      const s = sb();
+      const { data } = await s.from('profiles').select('*').eq('id', userId).single();
+      if (data) setMe(data);
+    };
+    load();
+    window.addEventListener('glo-refresh', load);
+    return () => window.removeEventListener('glo-refresh', load);
+  }, [userId, profile]);
+
   if (path === '/login' || path.startsWith('/sign')) {
     return <>{children}</>;
   }
 
-  const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings' };
+  const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
 
   const nav = (s: string) => {
     if (AUTH_SCREENS.includes(s) && !userId) { router.push('/login'); return; }
@@ -214,21 +216,21 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <nav id="drawer" className={open ? 'open' : ''}>
         <div className="drawer-head">
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="" className="avatar avatar-img" />
+          {me?.avatar_url ? (
+            <img src={me.avatar_url} alt="" className="avatar avatar-img" />
           ) : (
-            <div className={`avatar ${profile?.avatar_grad || 'av-me'}`}>{userId ? (profile?.display_name || 'A')[0] : '?'}</div>
+            <div className={`avatar ${me?.avatar_grad || 'av-me'}`}>{userId ? (me?.display_name || 'A')[0] : '?'}</div>
           )}
 
-          {userId && profile ? (
+          {userId && me ? (
             <div className="drawer-id">
               <div className="drawer-id-left">
-                <b>{profile.display_name} <VerifiedBadge type={profile.verified} /></b>
-                <span className="handle">@{profile.username}</span>
+                <b>{me.display_name} <VerifiedBadge type={me.verified} /></b>
+                <span className="handle">@{me.username}</span>
               </div>
               <div className="drawer-stats">
-                <div><b>{profile.following_count ?? 0}</b><span>Following</span></div>
-                <div><b>{profile.followers_count ?? 0}</b><span>Followers</span></div>
+                <div><b>{me.following_count ?? 0}</b><span>Following</span></div>
+                <div><b>{me.followers_count ?? 0}</b><span>Followers</span></div>
               </div>
             </div>
           ) : (
@@ -247,12 +249,8 @@ export function Shell({ children }: { children: ReactNode }) {
           {item('profile', 'Profile', <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" /></svg>)}
           {item('messages', 'Messages', <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>)}
           {item('bookmarks', 'Bookmarks', I('M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'))}
-          {item('settings', 'Settings', <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 8v8M8 12h8" /></svg>)}
-          <a className="nav-item" href="https://quixaii.netlify.app/" target="_blank" rel="noopener">
-            <svg className="q-ic" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.1 5.6L20 9.7l-5.9 2.1L12 17.5l-2.1-5.7L4 9.7l5.9-2.1z" /></svg>
-            Try Quix
-            <svg className="ext" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 17 17 7M7 7h10v10" /></svg>
-          </a>
+          {item('quix', 'Quix chat', <img src="/quix.png" alt="" className="q-img" />)}
+          {item('settings', 'Settings', GEAR)}
         </div>
 
         <div className="drawer-foot">Glo © 2026</div>
