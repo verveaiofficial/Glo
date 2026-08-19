@@ -123,7 +123,6 @@ function Explore() {
     }
   });
 
-  /* hide accounts you already follow */
   const visible = accs.filter((a) => !following.includes(a.id));
 
   return (
@@ -153,7 +152,6 @@ function Explore() {
   );
 }
 
-/* ---------- Follow / Followers list sheet ---------- */
 function FollowList({ id, type, close }: { id: string; type: 'following' | 'followers'; close: () => void }) {
   const [rows, setRows] = useState<Profile[]>([]);
   const { openUser } = useNav();
@@ -177,4 +175,81 @@ function FollowList({ id, type, close }: { id: string; type: 'following' | 'foll
     <div className="sheet" onClick={close}>
       <div className="sheet-card" onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b style={{ fontSize: 17 }}>{type === 'following' ? 'Following
+          <b style={{ fontSize: 17 }}>{type === 'following' ? 'Following' : 'Followers'}</b>
+          <button className="icon-btn" onClick={close} aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="sheet-list">
+          {rows.length === 0 ? (
+            <div className="empty">Nothing here yet.</div>
+          ) : (
+            rows.map((r) => (
+              <button key={r.id} className="account" style={{ width: '100%', textAlign: 'left' }} onClick={() => { close(); openUser(r.id); }}>
+                {r.avatar_url ? (
+                  <img src={r.avatar_url} alt="" className="avatar avatar-img" />
+                ) : (
+                  <div className={`avatar ${r.avatar_grad}`}>{r.display_name[0]}</div>
+                )}
+                <div className="acc-info">
+                  <div className="acc-name"><b>{r.display_name}</b><VerifiedBadge type={r.verified} /></div>
+                  <div className="acc-handle">@{r.username}</div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditProfile({ profile, close }: { profile: Profile; close: () => void }) {
+  const toast = useToast();
+  const [name, setName] = useState(profile.display_name);
+  const [bio, setBio] = useState(profile.bio || '');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url || null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(profile.banner_url || null);
+  const [busy, setBusy] = useState(false);
+  const avatarRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file: File, type: 'avatar' | 'banner') => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const url = await uploadMedia(fd);
+    if (!url) { toast('Upload failed. Check storage settings.'); return; }
+    if (type === 'avatar') setAvatarUrl(url);
+    else setBannerUrl(url);
+    toast(type === 'avatar' ? 'Profile photo updated.' : 'Banner updated.');
+  };
+
+  const save = async () => {
+    if (!name.trim()) { toast('Name cannot be empty.'); return; }
+    setBusy(true);
+    const fd = new FormData();
+    fd.append('display_name', name.trim());
+    fd.append('bio', bio.trim());
+    if (avatarUrl) fd.append('avatar_url', avatarUrl);
+    if (bannerUrl) fd.append('banner_url', bannerUrl);
+    const res = await updateProfile(fd);
+    setBusy(false);
+    if (res?.error) { toast(res.error); return; }
+    toast('Profile saved.');
+    window.dispatchEvent(new Event('glo-refresh'));
+    setTimeout(() => window.location.reload(), 650);
+  };
+
+  return (
+    <div className="edit-profile">
+      <div className="edit-profile-head">
+        <button className="icon-btn" onClick={close} aria-label="Close">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+        </button>
+        <b>Edit profile</b>
+        <button className="post-btn" disabled={busy || !name.trim()} onClick={save}>{busy ? 'Saving...' : 'Save'}</button>
+      </div>
+
+      <div className="edit-profile-body">
+        <div className="banner-edit">
+          {bannerUrl ? <img src={bannerUrl} alt="
