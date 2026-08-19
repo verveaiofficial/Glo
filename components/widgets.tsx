@@ -96,7 +96,7 @@ export function PostModal({ close }: { close: () => void }) {
     fd.append('file', f);
     const url = await uploadMedia(fd);
     if (url) setMedia(url);
-    else toast('Upload failed. Check storage settings.');
+    else toast('Upload failed.');
   };
 
   const submit = async () => {
@@ -112,7 +112,7 @@ export function PostModal({ close }: { close: () => void }) {
     setMedia(null);
     toast('Posted to Glo.');
     close();
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     window.dispatchEvent(new Event('glo-refresh'));
   };
 
@@ -282,7 +282,9 @@ export function Stories() {
             ) : (
               <div className={`avatar ${cur.profiles?.avatar_grad || 'av-1'}`}>{(cur.profiles?.display_name || '?')[0]}</div>
             )}
-            <b onClick={() => { setView(null); if (cur.profiles) openUser(cur.profiles.id, cur.profiles.username); }}>{cur.profiles?.display_name}</b>
+            <b onClick={(e) => { e.stopPropagation(); setView(null); if (cur.profiles) openUser(cur.profiles.id, cur.profiles.username); }}>
+              {cur.profiles?.display_name}
+            </b>
             <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setView(null); }} aria-label="Close story">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
