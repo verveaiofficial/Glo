@@ -87,12 +87,36 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
   const p = post.profiles;
 
   const guard = () => { if (!userId) { toast('Log in first.'); return true; } return false; };
+  const canDelete = userId === post.user_id;
+
+  const del = async () => {
+    if (!canDelete) return;
+    if (!window.confirm('Delete this post?')) return;
+
+    const { error } = await sb.from('posts').delete().eq('id', post.id);
+    if (error) {
+      toast('Could not delete post.');
+      return;
+    }
+
+    toast('Post deleted.');
+    window.dispatchEvent(new Event('glo-refresh'));
+  };
 
   return (
     <article className="post rise">
       <div className="post-head">
         <button className="avatar" style={{ background: p?.avatar_url ? 'transparent' : undefined, padding: 0 }} onClick={() => p && openUser(p.id, p.username)}>
-          {p?.avatar_url ? <img src={p.avatar_url} alt="" className="avatar-img" /> : <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>}
+          {p?.avatar_url ? (
+            <img
+              src={p.avatar_url}
+              alt=""
+              className="avatar-img"
+              style={{ objectFit: 'contain', background: 'rgba(255,255,255,0.06)' }}
+            />
+          ) : (
+            <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
+          )}
         </button>
         <div className="post-body">
           <div className="post-user">
@@ -103,24 +127,49 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
           <div className="post-text">{post.content}</div>
           {post.media_url && <img src={post.media_url} alt="" style={{ marginTop: 12, height: 200, objectFit: 'cover', width: '100%', borderRadius: 16, border: '1px solid var(--gbrd-soft)' }} />}
           <div className="actions">
-            <button className="act reply" onClick={() => { if (guard()) return; toast('Replies coming soon.'); }}>
+            <button type="button" className="act reply" onClick={() => { if (guard()) return; toast('Replies coming soon.'); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-4.9a8.4 8.4 0 1 1 16-4.6z" /></svg>
               <span>{fmt(post.replies_count)}</span>
             </button>
-            <button className={`act repost ${rp ? 'on' : ''}`} onClick={() => { if (guard()) return; setRp(!rp); setRc(rc + (rp ? -1 : 1)); toggleRepost(post.id); }}>
+            <button type="button" className={`act repost ${rp ? 'on' : ''}`} onClick={() => { if (guard()) return; setRp(!rp); setRc(rc + (rp ? -1 : 1)); toggleRepost(post.id); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
               <span>{fmt(rc)}</span>
             </button>
-            <button className={`act like ${lk ? 'on' : ''}`} onClick={() => { if (guard()) return; const on = !lk; setLk(on); setLp(lp + (on ? 1 : -1)); toggleLike(post.id); }}>
+            <button type="button" className={`act like ${lk ? 'on' : ''}`} onClick={() => { if (guard()) return; const on = !lk; setLk(on); setLp(lp + (on ? 1 : -1)); toggleLike(post.id); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg>
               <span>{fmt(lp)}</span>
             </button>
-            <button className={`act bm ${bm ? 'on' : ''}`} onClick={() => { if (guard()) return; setBm(!bm); toggleBookmark(post.id); toast(bm ? 'Removed from bookmarks.' : 'Saved to bookmarks.'); }}>
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+            <button
+              type="button"
+              className={`act bm ${bm ? 'on' : ''}`}
+              aria-label={bm ? 'Remove bookmark' : 'Save to bookmarks'}
+              title={bm ? 'Remove bookmark' : 'Save to bookmarks'}
+              style={{ minWidth: 44, minHeight: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
+              onClick={() => { if (guard()) return; setBm(!bm); toggleBookmark(post.id); toast(bm ? 'Removed from bookmarks.' : 'Saved to bookmarks.'); }}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ pointerEvents: 'none' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
             </button>
-            <button className="act share" onClick={() => { if (guard()) return; toast('Link copied.'); }}>
+            <button type="button" className="act share" onClick={() => { if (guard()) return; toast('Link copied.'); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v13" /><path d="m7 8 5-5 5 5" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
             </button>
+            {canDelete && (
+              <button
+                type="button"
+                className="act share"
+                aria-label="Delete post"
+                title="Delete post"
+                style={{ color: '#f4212e', minWidth: 44, minHeight: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
+                onClick={del}
+              >
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ pointerEvents: 'none' }}>
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M10 11v6" />
+                  <path d="M14 11v6" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -664,6 +713,13 @@ function UserScreen() {
   const [tab, setTab] = useState('posts');
   const [msgOpen, setMsgOpen] = useState(false);
   const [data, setData] = useState({ posts: [] as Post[], reposts: [] as Post[], rpIds: [] as string[] });
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    const h = () => setTick((t) => t + 1);
+    window.addEventListener('glo-refresh', h);
+    return () => window.removeEventListener('glo-refresh', h);
+  }, []);
 
   useEffect(() => {
     if (!viewId) return;
@@ -683,7 +739,7 @@ function UserScreen() {
         setData((d) => ({ ...d, reposts: rpPosts || [], rpIds }));
       }
     })();
-  }, [viewId, userId]);
+  }, [viewId, userId, tick]);
 
   useEffect(() => {
     const h = (e: Event) => {
@@ -734,7 +790,11 @@ function UserScreen() {
 }
 
 function QuixPage() {
-  return <div style={{ position: 'fixed', top: 60, left: 0, right: 0, bottom: 0, background: '#000' }}><iframe src="https://chat-quix.vercel.app" style={{ width: '100%', height: '100%', border: 'none' }} /></div>;
+  useEffect(() => {
+    window.open('https://chat-quix.vercel.app', '_blank', 'noopener,noreferrer');
+  }, []);
+
+  return null;
 }
 
 function Messages() {
@@ -837,6 +897,7 @@ function Shell({ children }: { children: ReactNode }) {
   const { userId, profile } = useAuth();
   const [me, setMe] = useState(profile);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notifs, setNotifs] = useState<Notif[]>([]);
 
   useEffect(() => {
     if (!userId) { setMe(profile); return; }
@@ -849,13 +910,86 @@ function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('glo-refresh', load);
   }, [userId, profile]);
 
+  useEffect(() => {
+    if (!notifOpen) return;
+    if (!userId) {
+      setNotifs([]);
+      return;
+    }
+
+    let active = true;
+
+    const load = async () => {
+      try {
+        let result: any = await sb
+          .from('notifications')
+          .select('*,actor:profiles(*)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (result.error) {
+          result = await sb
+            .from('notifs')
+            .select('*,actor:profiles(*)')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        }
+
+        if (result.error) {
+          result = await sb
+            .from('notifications')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        }
+
+        if (result.error) {
+          result = await sb
+            .from('notifs')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        }
+
+        if (active) setNotifs((result.data || []) as Notif[]);
+      } catch {
+        if (active) setNotifs([]);
+      }
+    };
+
+    load();
+    return () => { active = false; };
+  }, [notifOpen, userId]);
+
+  const notifText = (n: Notif) => {
+    const name = n.actor?.display_name || 'Someone';
+    switch (n.type) {
+      case 'like': return `${name} liked your post.`;
+      case 'repost': return `${name} reposted your post.`;
+      case 'follow': return `${name} followed you.`;
+      case 'reply': return `${name} replied to your post.`;
+      default: return `${name} interacted with your content.`;
+    }
+  };
+
   const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: viewUsername || 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
 
   const nav = (s: string) => {
+    if (s === 'quix') {
+      window.open('https://chat-quix.vercel.app', '_blank', 'noopener,noreferrer');
+      setOpen(false);
+      return;
+    }
+
     if (['messages', 'bookmarks', 'settings', 'profile'].includes(s) && !userId) {
       window.location.href = '/?mode=login';
       return;
     }
+
     go(s);
     setOpen(false);
   };
@@ -905,6 +1039,7 @@ function Shell({ children }: { children: ReactNode }) {
         </div>
         <div className="drawer-foot">Glo © 2026</div>
       </nav>
+
       <div className="wrap">
         <header>
           {isUser ? <button className="icon-btn" onClick={() => go('home')} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
@@ -919,6 +1054,7 @@ function Shell({ children }: { children: ReactNode }) {
         </header>
         {children}
       </div>
+
       {isHome && (
         <div className="fab-container">
           <div className={`fab-menu ${fabOpen ? 'open' : ''}`}>
@@ -928,6 +1064,64 @@ function Shell({ children }: { children: ReactNode }) {
           <button className={`fab ${fabOpen ? 'open' : ''}`} onClick={() => setFabOpen(!fabOpen)} aria-label="Create"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4"><path d="M12 5v14M5 12h14" /></svg></button>
         </div>
       )}
+
+      <nav
+        id="notifDrawer"
+        style={{
+          position: 'fixed',
+          top: 0,
+          bottom: 0,
+          right: notifOpen ? 0 : -340,
+          width: 320,
+          maxWidth: '88vw',
+          background: 'var(--bg, #000)',
+          borderLeft: '1px solid var(--gbrd-soft, rgba(255,255,255,0.1))',
+          zIndex: 1200,
+          transition: 'right .28s ease',
+          overflowY: 'auto',
+          padding: 16,
+          boxShadow: notifOpen ? '0 0 30px rgba(0,0,0,.35)' : 'none'
+        }}
+        aria-hidden={!notifOpen}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <b style={{ fontSize: 17 }}>Notifications</b>
+          <button className="icon-btn" onClick={() => setNotifOpen(false)} aria-label="Close notifications">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {!userId ? (
+          <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />
+        ) : notifs.length === 0 ? (
+          <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." />
+        ) : (
+          notifs.map((n) => (
+            <div
+              key={n.id}
+              className="rise"
+              style={{ display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--gbrd-soft, rgba(255,255,255,0.08))' }}
+            >
+              {n.actor?.avatar_url ? (
+                <img
+                  src={n.actor.avatar_url}
+                  alt=""
+                  className="avatar avatar-img"
+                  style={{ width: 38, height: 38, objectFit: 'contain', background: 'rgba(255,255,255,0.06)' }}
+                />
+              ) : (
+                <div className={`avatar ${n.actor?.avatar_grad || 'av-1'}`} style={{ width: 38, height: 38 }}>
+                  {(n.actor?.display_name || '?')[0]}
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14.5, color: 'var(--text)' }}>{notifText(n)}</div>
+                {n.created_at && <div style={{ fontSize: 12.5, color: 'var(--dim, #8b98a5)', marginTop: 3 }}>{timeAgo(n.created_at)}</div>}
+              </div>
+            </div>
+          ))
+        )}
+      </nav>
     </>
   );
 }
