@@ -427,14 +427,23 @@ function Explore() {
   const { userId } = useAuth();
   const [accs, setAccs] = useState<Profile[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
+  const [ready, setReady] = useState(false);
 
   useRefresh(async () => {
-    const { data } = await sb.from('profiles').select('*').neq('id', userId || '').order('followers_count', { ascending: false });
-    if (data) setAccs(data);
+    const accRes = userId
+      ? await sb.from('profiles').select('*').neq('id', userId).order('followers_count', { ascending: false })
+      : await sb.from('profiles').select('*').order('followers_count', { ascending: false });
+
+    if (accRes.data) setAccs(accRes.data);
+
     if (userId) {
       const { data: f } = await sb.from('follows').select('following_id').eq('follower_id', userId);
       setFollowing((f || []).map((x: any) => x.following_id));
+    } else {
+      setFollowing([]);
     }
+
+    setReady(true);
   });
 
   const visible = accs.filter((a) => !following.includes(a.id));
@@ -445,7 +454,11 @@ function Explore() {
         <input placeholder="Search people..." onInput={(e: any) => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#accList .account').forEach((a: any) => { a.style.display = a.textContent.toLowerCase().includes(q) ? '' : 'none'; }); }} />
       </div>
       <div className="sec-label">Suggested for you</div>
-      {visible.length === 0 ? <Empty icon={IC.users} title="No one to explore yet" sub="When people join Glo, they'll show up here." /> : <div id="accList">{visible.map((a) => (<AccountRow key={a.id} acc={a} following={following.includes(a.id)} />))}</div>}
+      {!ready ? null : visible.length === 0 ? (
+        <Empty icon={IC.users} title="No one to explore yet" sub="When people join Glo, they'll show up here." />
+      ) : (
+        <div id="accList">{visible.map((a) => (<AccountRow key={a.id} acc={a} following={following.includes(a.id)} />))}</div>
+      )}
     </>
   );
 }
@@ -774,7 +787,6 @@ function Settings() {
 
 function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
   const toast = useToast();
-  const { reload } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -786,12 +798,20 @@ function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
     const res = mode === 'signup' ? await signUp(email, password, username) : await signIn(email, password);
     setBusy(false);
     if (res.error) { toast(res.error); return; }
-    toast(mode === 'signup' ? 'Account created!' : 'Welcome back!');
-    reload();
+    window.location.href = window.location.pathname;
   };
 
   return (
     <div className="auth-wrap">
+      <button
+        className="icon-btn"
+        style={{ position: 'fixed', top: 16, left: 16, zIndex: 1000 }}
+        onClick={() => { window.location.href = window.location.pathname; }}
+        aria-label="Back"
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+      </button>
+
       <div className="auth-card">
         <h2 style={{ fontSize: 24 }}>{mode === 'signup' ? 'Create account' : 'Log in'}</h2>
         <div className="auth-form">
@@ -949,8 +969,14 @@ export default function App() {
   // Check URL for auth mode
   const urlParams = new URLSearchParams(window.location.search);
   const authMode = urlParams.get('mode');
+
   if (authMode === 'login' || authMode === 'signup') {
-    return <AuthScreen mode={authMode} />;
+    return (
+      <ToastCtx.Provider value={toast}>
+        {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
+        <AuthScreen mode={authMode} />
+      </ToastCtx.Provider>
+    );
   }
 
   if (loading) {
