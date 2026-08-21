@@ -205,7 +205,7 @@ function Stories() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await sb.from('stories').select('*,profiles(*)').gt('expires_at', new Date().toISOString()).order('created_at');
+      const { data } = await sb.from('stories').select('*,profiles:user_id(*)').gt('expires_at', new Date().toISOString()).order('created_at');
       setStories(data || []);
     };
     load();
@@ -382,7 +382,7 @@ function Home() {
   }, []);
 
   const load = async () => {
-    const { data } = await sb.from('posts').select('*,profiles(*)').is('parent_id', null).order('created_at', { ascending: false });
+    const { data } = await sb.from('posts').select('*,profiles:user_id(*)').is('parent_id', null).order('created_at', { ascending: false });
     if (data) setPosts(data);
     if (userId) {
       const [l, r, b, f] = await Promise.all([
@@ -567,8 +567,8 @@ function ProfileScreen() {
   useRefresh(async () => {
     if (!userId) return;
     const [p, r, rp, lk, bm] = await Promise.all([
-      sb.from('posts').select('*,profiles(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
-      sb.from('posts').select('*,profiles(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
+      sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
+      sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
       sb.from('reposts').select('post_id').eq('user_id', userId),
       sb.from('likes').select('post_id').eq('user_id', userId),
       sb.from('bookmarks').select('post_id').eq('user_id', userId),
@@ -578,8 +578,8 @@ function ProfileScreen() {
     const bmIds = (bm.data || []).map((x: any) => x.post_id);
     let reposts: Post[] = [];
     let likes: Post[] = [];
-    if (rpIds.length) { const q = await sb.from('posts').select('*,profiles(*)').in('id', rpIds); reposts = q.data || []; }
-    if (lkIds.length) { const q = await sb.from('posts').select('*,profiles(*)').in('id', lkIds); likes = q.data || []; }
+    if (rpIds.length) { const q = await sb.from('posts').select('*,profiles:user_id(*)').in('id', rpIds); reposts = q.data || []; }
+    if (lkIds.length) { const q = await sb.from('posts').select('*,profiles:user_id(*)').in('id', lkIds); likes = q.data || []; }
     setData({ posts: p.data || [], replies: r.data || [], reposts, likes, rpIds, lkIds, bmIds });
   });
 
@@ -661,12 +661,12 @@ function UserScreen() {
       setFollowing(!!f);
       const { data: fm } = await sb.from('follows').select('*').eq('follower_id', viewId).eq('following_id', userId || '').maybeSingle();
       setFollowsMe(!!fm);
-      const { data: p } = await sb.from('posts').select('*,profiles(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
+      const { data: p } = await sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
       if (p) setData((d) => ({ ...d, posts: p }));
       const { data: rp } = await sb.from('reposts').select('post_id').eq('user_id', viewId);
       const rpIds = (rp || []).map((x: any) => x.post_id);
       if (rpIds.length) {
-        const { data: rpPosts } = await sb.from('posts').select('*,profiles(*)').in('id', rpIds);
+        const { data: rpPosts } = await sb.from('posts').select('*,profiles:user_id(*)').in('id', rpIds);
         setData((d) => ({ ...d, reposts: rpPosts || [], rpIds }));
       }
     })();
@@ -750,7 +750,7 @@ function Bookmarks() {
     const { data } = await sb.from('bookmarks').select('post_id').eq('user_id', userId);
     const ids = (data || []).map((x: any) => x.post_id);
     if (!ids.length) { setPosts([]); return; }
-    const { data: p } = await sb.from('posts').select('*,profiles(*)').in('id', ids);
+    const { data: p } = await sb.from('posts').select('*,profiles:user_id(*)').in('id', ids);
     if (p) setPosts(p);
   });
   if (!userId) return <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />;
@@ -982,4 +982,4 @@ export default function App() {
       </ToastCtx.Provider>
     </AuthCtx.Provider>
   );
-              }
+}
