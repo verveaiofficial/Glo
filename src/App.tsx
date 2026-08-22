@@ -1034,7 +1034,7 @@ function Messages() {
   const { userId } = useAuth();
   const { chatId, openChat } = useNav();
   const toast = useToast();
-  const [m, setM] = useState<Msg[]>([]);
+  const [m, setM] = useState<any[]>([]);
   const [chatMsgs, setChatMsgs] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1047,8 +1047,10 @@ function Messages() {
       const all = [...(sent || []), ...(recv || [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       setChatMsgs(all);
     } else {
-      const { data } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
-      if (data) setM(data);
+      const { data: recv } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId);
+      const { data: sent } = await sb.from('messages').select('*,recipient:profiles!messages_recipient_id_fkey(*)').eq('sender_id', userId);
+      const all = [...(recv || []), ...(sent || [])].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setM(all);
     }
   };
 
@@ -1089,11 +1091,23 @@ function Messages() {
     );
   }
 
-  return m.length === 0 ? <Empty icon={IC.mail} title="No messages" sub="Say hi to someone. It's free." /> : <>{m.map((x) => (
-    <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`} onClick={() => openChat(x.sender_id, x.sender?.display_name || '')} style={{cursor: 'pointer'}}>
-      {x.sender?.avatar_url ? <img src={x.sender.avatar_url} alt="" className="avatar avatar-img" /> : <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>{(x.sender?.display_name || '?')[0]}</div>}
-      <div className="msg-info"><div className="msg-top"><b>{x.sender?.display_name}</b><time>{timeAgo(x.created_at)}</time></div><p>{x.content}</p></div>
-      {!x.read && <span className="dot" />}
+  const threads: any[] = [];
+  m.forEach((x) => {
+    const otherId = x.sender_id === userId ? x.recipient_id : x.sender_id;
+    const other = x.sender_id === userId ? x.recipient : x.sender;
+    const t = threads.find((th) => th.otherId === otherId);
+    if (t) {
+      if (x.recipient_id === userId && !x.read) t.unread = true;
+    } else {
+      threads.push({ otherId, other, latest: x, unread: x.recipient_id === userId && !x.read });
+    }
+  });
+
+  return threads.length === 0 ? <Empty icon={IC.mail} title="No messages" sub="Say hi to someone. It's free." /> : <>{threads.map((t) => (
+    <div key={t.otherId} className={`msg rise ${t.unread ? 'unread' : ''}`} onClick={() => openChat(t.otherId, t.other?.display_name || '')} style={{cursor: 'pointer'}}>
+      {t.other?.avatar_url ? <img src={t.other.avatar_url} alt="" className="avatar avatar-img" /> : <div className={`avatar ${t.other?.avatar_grad || 'av-1'}`}>{(t.other?.display_name || '?')[0]}</div>}
+      <div className="msg-info"><div className="msg-top"><b>{t.other?.display_name}</b><time>{timeAgo(t.latest.created_at)}</time></div><p>{t.latest.sender_id === userId ? `You: ${t.latest.content}` : t.latest.content}</p></div>
+      {t.unread && <span className="dot" />}
     </div>
   ))}</>;
 }
