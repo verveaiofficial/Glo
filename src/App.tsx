@@ -952,7 +952,7 @@ function UserScreen() {
 
   useEffect(() => {
     const h = async (e: Event) => {
-      if ((e as CustomEvent).detail === viewId) { 
+      if ((e as CustomEvent).detail === viewId && viewId) { 
         await toggleFollow(viewId);
         setFollowing(false); 
         toast('Unfollowed.'); 
@@ -966,7 +966,7 @@ function UserScreen() {
   if (!user || !viewId) return null;
 
   const handleFollow = async () => {
-    if (!userId) { toast('Log in to follow.'); return; }
+    if (!userId || !viewId) { if (!userId) toast('Log in to follow.'); return; }
     await toggleFollow(viewId);
     setFollowing(!following);
     toast(following ? `Unfollowed ${user.display_name}.` : `Following ${user.display_name}.`);
