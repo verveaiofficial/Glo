@@ -6,7 +6,7 @@ const AuthCtx = createContext<{ userId: string | null; profile: Profile | null; 
 const useAuth = () => useContext(AuthCtx);
 const ToastCtx = createContext<(m: string) => void>(() => {});
 const useToast = () => useContext(ToastCtx);
-const NavCtx = createContext<{ screen: string; go: (s: string) => void; feedTab: string; setFeedTab: (t: string) => void; viewId: string | null; viewUsername: string; openUser: (id: string, username: string) => void; chatId: string | null; chatName: string; openChat: (id: string, name: string) => void; closeChat: () => void; viewFollowing: boolean; setViewFollowing: (v: boolean) => void }>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, viewUsername: '', openUser: () => {}, chatId: null, chatName: '', openChat: () => {}, closeChat: () => {}, viewFollowing: false, setViewFollowing: () => {} });
+const NavCtx = createContext<{ screen: string; go: (s: string) => void; feedTab: string; setFeedTab: (t: string) => void; viewId: string | null; viewUsername: string; openUser: (id: string, username: string) => void; chatId: string | null; chatName: string; openChat: (id: string, name: string) => void; closeChat: () => void; viewFollowing: boolean; setViewFollowing: (v: boolean) => void; viewPostId: string | null; postAutoTab: 'likes' | 'reposts' | null; openPost: (id: string, autoTab?: 'likes' | 'reposts') => void }>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, viewUsername: '', openUser: () => {}, chatId: null, chatName: '', openChat: () => {}, closeChat: () => {}, viewFollowing: false, setViewFollowing: () => {}, viewPostId: null, postAutoTab: null, openPost: () => {} });
 const useNav = () => useContext(NavCtx);
 
 // ============ HOOKS ============
@@ -119,7 +119,7 @@ function AvatarCrop({ src, onDone, close }: { src: string; onDone: (f: File) => 
 
 // ============ POST CARD ============
 function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: boolean; reposted: boolean; bookmarked: boolean }) {
-  const toast = useToast(); const { userId } = useAuth(); const { openUser } = useNav();
+  const toast = useToast(); const { userId } = useAuth(); const { openUser, openPost } = useNav();
   const [lk, setLk] = useState(liked); const [lp, setLp] = useState(post.likes_count);
   const [rp, setRp] = useState(reposted); const [rc, setRc] = useState(post.reposts_count);
   const [bm, setBm] = useState(bookmarked);
@@ -143,8 +143,8 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
           {post.media_url && <img src={post.media_url} alt="" style={{ marginTop: 12, height: 200, objectFit: 'cover', width: '100%', borderRadius: 16, border: '1px solid var(--gbrd-soft)' }} />}
           <div className="actions">
             <button type="button" className="act reply" onClick={() => { if (guard()) return; toast('Replies coming soon.'); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-4.9a8.4 8.4 0 1 1 16-4.6z" /></svg><span>{fmt(post.replies_count)}</span></button>
-            <button type="button" className={`act repost ${rp ? 'on' : ''}`} onClick={() => { if (guard()) return; setRp(!rp); setRc(rc + (rp ? -1 : 1)); toggleRepost(post.id); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg><span>{fmt(rc)}</span></button>
-            <button type="button" className={`act like ${lk ? 'on' : ''}`} onClick={() => { if (guard()) return; const on = !lk; setLk(on); setLp(lp + (on ? 1 : -1)); toggleLike(post.id); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg><span>{fmt(lp)}</span></button>
+            <div className={`act repost ${rp ? 'on' : ''}`}><button type="button" aria-label={rp ? 'Undo repost' : 'Repost'} onClick={() => { if (guard()) return; setRp(!rp); setRc(rc + (rp ? -1 : 1)); toggleRepost(post.id); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg></button><button type="button" aria-label="View reposts" onClick={() => openPost(post.id, 'reposts')}>{fmt(rc)}</button></div>
+            <div className={`act like ${lk ? 'on' : ''}`}><button type="button" aria-label={lk ? 'Unlike' : 'Like'} onClick={() => { if (guard()) return; const on = !lk; setLk(on); setLp(lp + (on ? 1 : -1)); toggleLike(post.id); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg></button><button type="button" aria-label="View likes" onClick={() => openPost(post.id, 'likes')}>{fmt(lp)}</button></div>
             <button type="button" className={`act bm ${bm ? 'on' : ''}`} aria-label={bm ? 'Remove bookmark' : 'Save to bookmarks'} title={bm ? 'Remove bookmark' : 'Save to bookmarks'} style={{ minWidth: 44, minHeight: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8 }} onClick={() => { if (guard()) return; setBm(!bm); toggleBookmark(post.id); toast(bm ? 'Removed from bookmarks.' : 'Saved to bookmarks.'); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ pointerEvents: 'none' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg></button>
             <button type="button" className="act share" onClick={() => { if (guard()) return; toast('Link copied.'); }}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v13" /><path d="m7 8 5-5 5 5" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg></button>
             {canDelete && (<button type="button" className="act share" aria-label="Delete post" title="Delete post" style={{ color: '#f4212e', minWidth: 44, minHeight: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8 }} onClick={del}><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ pointerEvents: 'none' }}><path d="M3 6h18" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M10 11v6" /><path d="M14 11v6" /></svg></button>)}
@@ -399,6 +399,24 @@ function FollowListDrawer({ id, type, open, onClose }: { id: string; type: 'foll
   );
 }
 
+function PostEngageDrawer({ postId, type, open, onClose }: { postId: string; type: 'likes' | 'reposts'; open: boolean; onClose: () => void }) {
+  const [rows, setRows] = useState<Profile[]>([]); const { openUser } = useNav();
+  useEffect(() => { if (!open) return; (async () => { const { data } = await sb.from(type === 'likes' ? 'likes' : 'reposts').select('profiles:user_id(*)').eq('post_id', postId).order('created_at', { ascending: false }); setRows((data || []).map((x: any) => x.profiles).filter(Boolean)); })(); }, [postId, type, open]);
+  return (
+    <aside id="listDrawer" className={open ? 'open' : ''}>
+      <div className="list-drawer-head"><b>{type === 'likes' ? 'Liked by' : 'Reposted by'}</b><button className="icon-btn" onClick={onClose} aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg></button></div>
+      <div className="list-drawer-body">
+        {rows.length === 0 ? <div className="empty">Nothing here yet.</div> : rows.map((r) => (
+          <button key={r.id} className="account" style={{ width: '100%', textAlign: 'left' }} onClick={() => { onClose(); openUser(r.id, r.username); }}>
+            {r.avatar_url ? <img src={r.avatar_url} alt="" className="avatar avatar-img" /> : <div className={`avatar ${r.avatar_grad}`}>{r.display_name[0]}</div>}
+            <div className="acc-info"><div className="acc-name"><b>{r.display_name}</b><VerifiedBadge type={r.verified} /></div><div className="acc-handle">@{r.username}</div></div>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
+}
+
 function ProfileScreen() {
   const { userId, profile, reload } = useAuth(); const toast = useToast();
   const [tab, setTab] = useState('posts'); const [edit, setEdit] = useState(false);
@@ -601,6 +619,29 @@ function Bookmarks() {
   return posts.length === 0 ? <Empty icon={IC.bm} title="No bookmarks yet" sub="Save posts and find them here later." /> : <div id="feed">{posts.map((p) => (<PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked />))}</div>;
 }
 
+// ============ POST SCREEN ============
+function PostScreen() {
+  const { viewPostId, postAutoTab } = useNav(); const { userId } = useAuth();
+  const [post, setPost] = useState<Post | null>(null); const [liked, setLiked] = useState(false); const [reposted, setReposted] = useState(false); const [bookmarked, setBookmarked] = useState(false);
+  const [engage, setEngage] = useState<null | 'likes' | 'reposts'>(null);
+  useEffect(() => { setEngage(postAutoTab || null); }, [postAutoTab, viewPostId]);
+  useRefresh(async () => {
+    if (!viewPostId) return;
+    const { data } = await sb.from('posts').select('*,profiles:user_id(*)').eq('id', viewPostId).single(); setPost(data || null);
+    if (!userId) { setLiked(false); setReposted(false); setBookmarked(false); return; }
+    const [lk, rp, bm] = await Promise.all([sb.from('likes').select('*').eq('user_id', userId).eq('post_id', viewPostId).maybeSingle(), sb.from('reposts').select('*').eq('user_id', userId).eq('post_id', viewPostId).maybeSingle(), sb.from('bookmarks').select('*').eq('user_id', userId).eq('post_id', viewPostId).maybeSingle()]);
+    setLiked(!!lk.data); setReposted(!!rp.data); setBookmarked(!!bm.data);
+  });
+  if (!post) return <div className="empty">Loading post…</div>;
+  return (
+    <>
+      <PostCard post={post} liked={liked} reposted={reposted} bookmarked={bookmarked} />
+      <div className="p-meta" style={{ padding: '0 16px 16px' }}><button onClick={() => setEngage('likes')}><b>{fmt(post.likes_count)}</b> Likes</button><button onClick={() => setEngage('reposts')}><b>{fmt(post.reposts_count)}</b> Reposts</button></div>
+      <PostEngageDrawer postId={post.id} type={engage || 'likes'} open={!!engage} onClose={() => setEngage(null)} />
+    </>
+  );
+}
+
 function Settings() {
   const { userId, profile } = useAuth();
   if (!userId) return <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />;
@@ -640,7 +681,7 @@ function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
 // ============ SHELL (LAYOUT) ============
 function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false); const [notifOpen, setNotifOpen] = useState(false); const [fabOpen, setFabOpen] = useState(false);
-  const { screen, go, viewId, viewUsername, chatId, chatName, closeChat, viewFollowing, openUser } = useNav();
+  const { screen, go, viewId, viewUsername, chatId, chatName, closeChat, viewFollowing, openUser, openPost } = useNav();
   const { userId, profile } = useAuth();
   const [me, setMe] = useState(profile); const [userMenuOpen, setUserMenuOpen] = useState(false);
   useEffect(() => { if (!userId) { setMe(profile); return; } const load = async () => { const { data } = await sb.from('profiles').select('*').eq('id', userId).single(); if (data) setMe(data); }; load(); window.addEventListener('glo-refresh', load); return () => window.removeEventListener('glo-refresh', load); }, [userId, profile]);
@@ -649,14 +690,14 @@ function Shell({ children }: { children: ReactNode }) {
   const notifIcon = (t: string) => t === 'like' ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg> : t === 'repost' ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg> : t === 'reply' ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-4.9a8.4 8.4 0 1 1 16-4.6z" /></svg> : t === 'follow' ? IC.users : IC.pen;
   const notifColor = (t: string) => t === 'like' ? 'pink' : t === 'repost' ? 'green' : t === 'post' ? 'gold' : '';
   const notifLabel = (t: string) => t === 'like' ? 'liked your post' : t === 'repost' ? 'reposted your post' : t === 'reply' ? 'replied to your post' : t === 'follow' ? 'followed you' : 'shared a new post';
-  const openNotif = (n: Notif) => { if (!n.read) { setNotifs((cur) => cur.map((x) => x.id === n.id ? { ...x, read: true } : x)); markNotifRead(n.id); } setNotifOpen(false); if (n.actor) openUser(n.actor.id, n.actor.username); };
-  const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: viewUsername || 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
+  const openNotif = async (n: Notif) => { if (!n.read) { setNotifs((cur) => cur.map((x) => x.id === n.id ? { ...x, read: true } : x)); markNotifRead(n.id); } setNotifOpen(false); if (n.type === 'follow') { if (n.actor) openUser(n.actor.id, n.actor.username); return; } if (!n.post_id) return; if (n.type === 'reply') { const { data } = await sb.from('posts').select('parent_id').eq('id', n.post_id).single(); openPost(data?.parent_id || n.post_id); return; } openPost(n.post_id, n.type === 'like' ? 'likes' : n.type === 'repost' ? 'reposts' : undefined); };
+  const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: viewUsername || 'Profile', post: 'Post', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
   const nav = (s: string) => { if (s === 'quix') { window.open('https://chat-quix.vercel.app', '_blank', 'noopener,noreferrer'); setOpen(false); return; } if (['messages', 'bookmarks', 'settings', 'profile'].includes(s) && !userId) { window.location.href = '/?mode=login'; return; } go(s); setOpen(false); };
   const handleCreate = (type: 'post' | 'story') => { setFabOpen(false); if (!userId) { window.location.href = '/?mode=login'; return; } window.dispatchEvent(new Event(type === 'post' ? 'glo-compose-post' : 'glo-compose-story')); };
   const I = (d: string) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={d} /></svg>;
   const GEAR = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>;
   const item = (s: string, label: string, icon: ReactNode) => <button className={`nav-item ${screen === s ? 'active' : ''}`} onClick={() => nav(s)}>{icon}{label}</button>;
-  const isHome = screen === 'home'; const isUser = screen === 'user'; const isChat = screen === 'messages' && !!chatId;
+  const isHome = screen === 'home'; const isUser = screen === 'user'; const isPost = screen === 'post'; const isChat = screen === 'messages' && !!chatId;
   return (
     <>
       <div id="backdrop" className={open || notifOpen ? 'show' : ''} onClick={() => { setOpen(false); setNotifOpen(false); setUserMenuOpen(false); }} />
@@ -690,7 +731,7 @@ function Shell({ children }: { children: ReactNode }) {
       </nav>
       <div className="wrap">
         <header>
-          {(isUser || isChat) ? <button className="icon-btn" onClick={() => { if (isChat) { closeChat(); } else { go('home'); } }} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
+          {(isUser || isPost || isChat) ? <button className="icon-btn" onClick={() => { if (isChat) { closeChat(); } else { go('home'); } }} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
           <div className={isHome ? 'wordmark' : 'page-title'} style={{ flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isHome ? <>Glo<i>.</i></> : isChat ? chatName : T[screen]}</div>
           {isHome && <div style={{ position: 'relative' }}><button className="icon-btn" onClick={() => { if (!userId) { window.location.href = '/?mode=login'; return; } setOpen(false); setNotifOpen(!notifOpen); }} aria-label="Notifications"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg></button>{unread > 0 && <span className="notif-dot">{unread > 9 ? '9+' : unread}</span>}</div>}
           {isUser && userId && viewFollowing && (
@@ -730,6 +771,7 @@ export default function App() {
   const [viewId, setViewId] = useState<string | null>(null); const [viewUsername, setViewUsername] = useState('');
   const [chatId, setChatId] = useState<string | null>(null); const [chatName, setChatName] = useState('');
   const [viewFollowing, setViewFollowing] = useState(false);
+  const [viewPostId, setViewPostId] = useState<string | null>(null); const [postAutoTab, setPostAutoTab] = useState<'likes' | 'reposts' | null>(null);
   const loadUser = async () => {
     const started = Date.now();
     const { data: { user } } = await sb.auth.getUser();
@@ -740,8 +782,9 @@ export default function App() {
   };
   useEffect(() => { loadUser(); const { data: { subscription } } = sb.auth.onAuthStateChange(() => loadUser()); return () => subscription.unsubscribe(); }, []);
   const toast = useCallback((m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(null), 4000); }, []);
-  const go = useCallback((s: string) => { setScreen(s); if (s !== 'user') { setViewId(null); setViewUsername(''); setViewFollowing(false); } }, []);
+  const go = useCallback((s: string) => { setScreen(s); if (s !== 'user') { setViewId(null); setViewUsername(''); setViewFollowing(false); } if (s !== 'post') { setViewPostId(null); setPostAutoTab(null); } }, []);
   const openUser = useCallback((id: string, username: string) => { setViewId(id); setViewUsername(username); setViewFollowing(false); setScreen('user'); }, []);
+  const openPost = useCallback((id: string, autoTab?: 'likes' | 'reposts') => { setViewPostId(id); setPostAutoTab(autoTab || null); setScreen('post'); }, []);
   const openChat = useCallback((id: string, name: string) => { setChatId(id); setChatName(name); setScreen('messages'); }, []);
   const closeChat = useCallback(() => { setChatId(null); setChatName(''); }, []);
   const urlParams = new URLSearchParams(window.location.search);
@@ -753,7 +796,7 @@ export default function App() {
   return (
     <AuthCtx.Provider value={{ userId, profile, reload: loadUser }}>
       <ToastCtx.Provider value={toast}>
-        <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser, chatId, chatName, openChat, closeChat, viewFollowing, setViewFollowing }}>
+        <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser, chatId, chatName, openChat, closeChat, viewFollowing, setViewFollowing, viewPostId, postAutoTab, openPost }}>
           <RippleFx />
           {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
           <Shell>
@@ -761,6 +804,7 @@ export default function App() {
               {screen === 'home' && <Home />}
               {screen === 'profile' && <ProfileScreen />}
               {screen === 'user' && viewId && <UserScreen />}
+              {screen === 'post' && viewPostId && <PostScreen />}
               {screen === 'quix' && <QuixPage />}
               {screen === 'messages' && <Messages />}
               {screen === 'bookmarks' && <Bookmarks />}
