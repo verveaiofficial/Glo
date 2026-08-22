@@ -36,6 +36,23 @@ function useRefresh(fn: () => void) {
   }, []);
 }
 
+// ============ RIPPLE ============
+function RippleFx() {
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      const b = t.closest('button');
+      if (!b) return;
+      b.classList.remove('do-ripple');
+      void b.offsetWidth;
+      b.classList.add('do-ripple');
+    };
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
+  }, []);
+  return null;
+}
+
 // ============ SMALL COMPONENTS ============
 function VerifiedBadge({ type }: { type: 'blue' | 'gold' | null }) {
   if (!type) return null;
@@ -739,7 +756,7 @@ function QuixPage() {
 
 function Messages() {
   const { userId } = useAuth();
-  const { chatId, chatName, openChat } = useNav();
+  const { chatId, openChat } = useNav();
   const toast = useToast();
   const [m, setM] = useState<Msg[]>([]);
   const [chatMsgs, setChatMsgs] = useState<any[]>([]);
@@ -774,8 +791,8 @@ function Messages() {
       setBusy(true);
       const res = await sendMessage(chatId, chatInput.trim());
       setBusy(false);
-      if (res.error) { toast('Failed to send.'); } else { 
-        setChatInput(''); 
+      if (res.error) { toast('Failed to send.'); } else {
+        setChatInput('');
         window.dispatchEvent(new Event('glo-refresh'));
       }
     };
@@ -1043,6 +1060,7 @@ export default function App() {
     <AuthCtx.Provider value={{ userId, profile, reload: loadUser }}>
       <ToastCtx.Provider value={toast}>
         <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser, chatId, chatName, openChat, closeChat }}>
+          <RippleFx />
           {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
           <Shell>
             <div key={screen} className="screen active">
