@@ -33,12 +33,11 @@ function useRefresh(fn: () => void) {
   }, []);
 }
 
-// ============ GLOBAL FX (RIPPLE + AVATAR FIX) ============
+// ============ GLOBAL FX (RIPPLE) ============
 function RippleFx() {
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      .avatar-img { object-fit: contain !important; }
       .glo-ripple {
         position: absolute;
         border-radius: 50%;
@@ -158,11 +157,18 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
       <div className="post-head">
         <button className="avatar" style={{ background: p?.avatar_url ? 'transparent' : undefined, padding: 0 }} onClick={() => p && openUser(p.id, p.username)}>
           {p?.avatar_url ? (
-            <img
-              src={p.avatar_url}
-              alt=""
-              className="avatar-img"
-              style={{ objectFit: 'contain', background: 'rgba(255,255,255,0.06)' }}
+            <span
+              style={{
+                display: 'block',
+                width: '100%',
+                height: '100%',
+                borderRadius: '50%',
+                backgroundImage: `url("${p.avatar_url}")`,
+                backgroundSize: 'contain',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                backgroundColor: 'rgba(255,255,255,0.06)'
+              }}
             />
           ) : (
             <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
@@ -1153,12 +1159,7 @@ function Shell({ children }: { children: ReactNode }) {
               style={{ display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--gbrd-soft, rgba(255,255,255,0.08))' }}
             >
               {n.actor?.avatar_url ? (
-                <img
-                  src={n.actor.avatar_url}
-                  alt=""
-                  className="avatar avatar-img"
-                  style={{ width: 38, height: 38, objectFit: 'contain', background: 'rgba(255,255,255,0.06)' }}
-                />
+                <img src={n.actor.avatar_url} alt="" className="avatar avatar-img" style={{ width: 38, height: 38 }} />
               ) : (
                 <div className={`avatar ${n.actor?.avatar_grad || 'av-1'}`} style={{ width: 38, height: 38 }}>
                   {(n.actor?.display_name || '?')[0]}
