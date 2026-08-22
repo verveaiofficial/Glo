@@ -724,7 +724,14 @@ export default function App() {
   const [viewId, setViewId] = useState<string | null>(null); const [viewUsername, setViewUsername] = useState('');
   const [chatId, setChatId] = useState<string | null>(null); const [chatName, setChatName] = useState('');
   const [viewFollowing, setViewFollowing] = useState(false);
-  const loadUser = async () => { const { data: { user } } = await sb.auth.getUser(); setUserId(user?.id || null); if (user) { const { data } = await sb.from('profiles').select('*').eq('id', user.id).single(); setProfile(data); } else { setProfile(null); } setLoading(false); };
+  const loadUser = async () => {
+    const started = Date.now();
+    const { data: { user } } = await sb.auth.getUser();
+    setUserId(user?.id || null);
+    if (user) { const { data } = await sb.from('profiles').select('*').eq('id', user.id).single(); setProfile(data); } else { setProfile(null); }
+    const remain = Math.max(0, 3000 - (Date.now() - started));
+    setTimeout(() => setLoading(false), remain);
+  };
   useEffect(() => { loadUser(); const { data: { subscription } } = sb.auth.onAuthStateChange(() => loadUser()); return () => subscription.unsubscribe(); }, []);
   const toast = useCallback((m: string) => { setToastMsg(m); setTimeout(() => setToastMsg(null), 4000); }, []);
   const go = useCallback((s: string) => { setScreen(s); if (s !== 'user') { setViewId(null); setViewUsername(''); setViewFollowing(false); } }, []);
