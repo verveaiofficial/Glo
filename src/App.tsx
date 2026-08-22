@@ -410,7 +410,7 @@ function ProfileScreen() {
   useRefresh(async () => {
     if (!userId) return;
     const [p, r, rp, lk, bm, followingRes, followersRes] = await Promise.all([sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }), sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }), sb.from('reposts').select('post_id').eq('user_id', userId), sb.from('likes').select('post_id').eq('user_id', userId), sb.from('bookmarks').select('post_id').eq('user_id', userId), sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId), sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId)]);
-    setFollowCounts({ following: followingRes.count || 0, followers: followersRes.count || 0 });
+    setFollowCounts({ following: followingRes.count ?? 0, followers: followersRes.count ?? 0 });
     const rpIds = (rp.data || []).map((x: any) => x.post_id); const lkIds = (lk.data || []).map((x: any) => x.post_id); const bmIds = (bm.data || []).map((x: any) => x.post_id);
     let reposts: Post[] = []; let likes: Post[] = [];
     if (rpIds.length) { const q = await sb.from('posts').select('*,profiles:user_id(*)').in('id', rpIds); reposts = q.data || []; }
@@ -473,6 +473,7 @@ function UserScreen() {
   const [following, setFollowing] = useState(false); const [followsMe, setFollowsMe] = useState(false);
   const [followCounts, setFollowCounts] = useState({ following: 0, followers: 0 });
   const [tab, setTab] = useState('posts'); const [msgOpen, setMsgOpen] = useState(false);
+  const [listType, setListType] = useState<null | 'following' | 'followers'>(null);
   const [data, setData] = useState({ posts: [] as Post[], reposts: [] as Post[], rpIds: [] as string[] });
   const [tick, setTick] = useState(0);
   useEffect(() => { const h = () => setTick((t) => t + 1); window.addEventListener('glo-refresh', h); return () => window.removeEventListener('glo-refresh', h); }, []);
@@ -485,7 +486,7 @@ function UserScreen() {
       const { data: fm } = await sb.from('follows').select('*').eq('follower_id', viewId).eq('following_id', userId || '').maybeSingle(); setFollowsMe(!!fm);
       const { count: followingCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', viewId);
       const { count: followersCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', viewId);
-      setFollowCounts({ following: followingCount || 0, followers: followersCount || 0 });
+      setFollowCounts({ following: followingCount ?? (u?.following_count ?? 0), followers: followersCount ?? (u?.followers_count ?? 0) });
       const { data: p } = await sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false }); if (p) setData((d) => ({ ...d, posts: p }));
       const { data: rp } = await sb.from('reposts').select('post_id').eq('user_id', viewId); const rpIds = (rp || []).map((x: any) => x.post_id);
       if (rpIds.length) { const { data: rpPosts } = await sb.from('posts').select('*,profiles:user_id(*)').in('id', rpIds); setData((d) => ({ ...d, reposts: rpPosts || [], rpIds })); }
@@ -518,7 +519,11 @@ function UserScreen() {
         <h2>{user.display_name} <VerifiedBadge type={user.verified} /></h2>
         <div className="handle">@{user.username}</div>
         {user.bio ? <p className="bio">{user.bio}</p> : <p className="bio">No bio yet.</p>}
-        <div className="p-meta"><span>Joined {joined}</span><button><b>{followCounts.following}</b> Following</button><button><b>{followCounts.followers}</b> Followers</button></div>
+        <div className="p-meta">
+          <span>Joined {joined}</span>
+          <button onClick={() => setListType('following')}><b>{followCounts.following}</b> Following</button>
+          <button onClick={() => setListType('followers')}><b>{followCounts.followers}</b> Followers</button>
+        </div>
       </div>
       <div className="ptabs">
         <button className={`ptab ${tab === 'posts' ? 'active' : ''}`} onClick={() => setTab('posts')}>Posts</button>
@@ -526,6 +531,7 @@ function UserScreen() {
       </div>
       {list.length === 0 ? <div className="pempty"><h3>No {tab} yet</h3><p>When they {tab === 'posts' ? 'post' : 'repost'}, it'll show up here.</p></div> : <div id="feed">{list.map((p) => (<PostCard key={p.id} post={p} liked={false} reposted={false} bookmarked={false} />))}</div>}
       {msgOpen && user && <MessageModal targetUserId={viewId} targetName={user.display_name} close={() => setMsgOpen(false)} />}
+      <FollowListDrawer id={viewId} type={listType || 'following'} open={!!listType} onClose={() => setListType(null)} />
     </>
   );
 }
