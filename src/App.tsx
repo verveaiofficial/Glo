@@ -815,6 +815,7 @@ function ProfileScreen() {
   const [edit, setEdit] = useState(false);
   const [listType, setListType] = useState<null | 'following' | 'followers'>(null);
   const [me, setMe] = useState<Profile | null>(profile);
+  const [followCounts, setFollowCounts] = useState({ following: 0, followers: 0 });
   const [data, setData] = useState({ posts: [] as Post[], replies: [] as Post[], reposts: [] as Post[], likes: [] as Post[], rpIds: [] as string[], lkIds: [] as string[], bmIds: [] as string[] });
 
   useEffect(() => {
@@ -830,13 +831,16 @@ function ProfileScreen() {
 
   useRefresh(async () => {
     if (!userId) return;
-    const [p, r, rp, lk, bm] = await Promise.all([
+    const [p, r, rp, lk, bm, followingRes, followersRes] = await Promise.all([
       sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
       sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
       sb.from('reposts').select('post_id').eq('user_id', userId),
       sb.from('likes').select('post_id').eq('user_id', userId),
       sb.from('bookmarks').select('post_id').eq('user_id', userId),
+      sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', userId),
+      sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', userId),
     ]);
+    setFollowCounts({ following: followingRes.count || 0, followers: followersRes.count || 0 });
     const rpIds = (rp.data || []).map((x: any) => x.post_id);
     const lkIds = (lk.data || []).map((x: any) => x.post_id);
     const bmIds = (bm.data || []).map((x: any) => x.post_id);
@@ -870,8 +874,8 @@ function ProfileScreen() {
         {me.bio ? <p className="bio">{me.bio}</p> : <p className="bio add-bio" onClick={() => setEdit(true)}>Add bio</p>}
         <div className="p-meta">
           <span>Joined {joined}</span>
-          <button onClick={() => setListType('following')}><b>{me.following_count ?? 0}</b> Following</button>
-          <button onClick={() => setListType('followers')}><b>{me.followers_count ?? 0}</b> Followers</button>
+          <button onClick={() => setListType('following')}><b>{followCounts.following}</b> Following</button>
+          <button onClick={() => setListType('followers')}><b>{followCounts.followers}</b> Followers</button>
         </div>
       </div>
       <div className="ptabs">{(['posts', 'replies', 'reposts', 'likes'] as const).map((t) => (<button key={t} className={`ptab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t[0].toUpperCase() + t.slice(1)}</button>))}</div>
@@ -919,6 +923,7 @@ function UserScreen() {
   const [user, setUser] = useState<Profile | null>(null);
   const [following, setFollowing] = useState(false);
   const [followsMe, setFollowsMe] = useState(false);
+  const [followCounts, setFollowCounts] = useState({ following: 0, followers: 0 });
   const [tab, setTab] = useState('posts');
   const [msgOpen, setMsgOpen] = useState(false);
   const [data, setData] = useState({ posts: [] as Post[], reposts: [] as Post[], rpIds: [] as string[] });
@@ -939,6 +944,11 @@ function UserScreen() {
       setFollowing(!!f);
       const { data: fm } = await sb.from('follows').select('*').eq('follower_id', viewId).eq('following_id', userId || '').maybeSingle();
       setFollowsMe(!!fm);
+      
+      const { count: followingCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', viewId);
+      const { count: followersCount } = await sb.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', viewId);
+      setFollowCounts({ following: followingCount || 0, followers: followersCount || 0 });
+
       const { data: p } = await sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
       if (p) setData((d) => ({ ...d, posts: p }));
       const { data: rp } = await sb.from('reposts').select('post_id').eq('user_id', viewId);
@@ -1000,7 +1010,7 @@ function UserScreen() {
         <h2>{user.display_name} <VerifiedBadge type={user.verified} /></h2>
         <div className="handle">@{user.username}</div>
         {user.bio ? <p className="bio">{user.bio}</p> : <p className="bio">No bio yet.</p>}
-        <div className="p-meta"><span>Joined {joined}</span><button><b>{user.following_count ?? 0}</b> Following</button><button><b>{user.followers_count ?? 0}</b> Followers</button></div>
+        <div className="p-meta"><span>Joined {joined}</span><button><b>{followCounts.following}</b> Following</button><button><b>{followCounts.followers}</b> Followers</button></div>
       </div>
       <div className="ptabs">
         <button className={`ptab ${tab === 'posts' ? 'active' : ''}`} onClick={() => setTab('posts')}>Posts</button>
@@ -1170,7 +1180,6 @@ function Shell({ children }: { children: ReactNode }) {
   const { userId, profile } = useAuth();
   const [me, setMe] = useState(profile);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notifs, setNotifs] = useState<Notif[]>([]);
 
   useEffect(() => {
     if (!userId) { setMe(profile); return; }
@@ -1182,72 +1191,6 @@ function Shell({ children }: { children: ReactNode }) {
     window.addEventListener('glo-refresh', load);
     return () => window.removeEventListener('glo-refresh', load);
   }, [userId, profile]);
-
-  useEffect(() => {
-    if (!notifOpen) return;
-    if (!userId) {
-      setNotifs([]);
-      return;
-    }
-
-    let active = true;
-
-    const load = async () => {
-      try {
-        let result: any = await sb
-          .from('notifications')
-          .select('*,actor:profiles(*)')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (result.error) {
-          result = await sb
-            .from('notifs')
-            .select('*,actor:profiles(*)')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        }
-
-        if (result.error) {
-          result = await sb
-            .from('notifications')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        }
-
-        if (result.error) {
-          result = await sb
-            .from('notifs')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        }
-
-        if (active) setNotifs((result.data || []) as Notif[]);
-      } catch {
-        if (active) setNotifs([]);
-      }
-    };
-
-    load();
-    return () => { active = false; };
-  }, [notifOpen, userId]);
-
-  const notifText = (n: Notif) => {
-    const name = n.actor?.display_name || 'Someone';
-    switch (n.type) {
-      case 'like': return `${name} liked your post.`;
-      case 'repost': return `${name} reposted your post.`;
-      case 'follow': return `${name} followed you.`;
-      case 'reply': return `${name} replied to your post.`;
-      default: return `${name} interacted with your content.`;
-    }
-  };
 
   const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: viewUsername || 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
 
@@ -1347,27 +1290,7 @@ function Shell({ children }: { children: ReactNode }) {
           </button>
         </div>
         <div className="notif-drawer-body">
-          {!userId ? (
-            <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />
-          ) : notifs.length === 0 ? (
-            <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." />
-          ) : (
-            notifs.map((n) => (
-              <div key={n.id} className="notif rise">
-                {n.actor?.avatar_url ? (
-                  <img src={n.actor.avatar_url} alt="" className="avatar avatar-img" style={{ width: 38, height: 38 }} />
-                ) : (
-                  <div className={`avatar ${n.actor?.avatar_grad || 'av-1'}`} style={{ width: 38, height: 38 }}>
-                    {(n.actor?.display_name || '?')[0]}
-                  </div>
-                )}
-                <div className="notif-info">
-                  <b>{notifText(n)}</b>
-                  {n.created_at && <time>{timeAgo(n.created_at)}</time>}
-                </div>
-              </div>
-            ))
-          )}
+          <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." />
         </div>
       </aside>
     </>
