@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { sb, Profile, Post, Story, Notif, Msg, timeAgo, fmt, signUp, signIn, signOut, createPost, toggleLike, toggleRepost, toggleBookmark, toggleFollow, createStory, updateProfile, uploadMedia, sendMessage } from './lib/supabase';
+import { sb, Profile, Post, Story, Notif, Msg, timeAgo, fmt, signUp, signIn, signOut, createPost, toggleLike, toggleRepost, toggleBookmark, toggleFollow, createStory, updateProfile, uploadMedia, sendMessage, fetchNotifications, markNotifRead } from './lib/supabase';
 
 // ============ CONTEXTS ============
 const AuthCtx = createContext<{ userId: string | null; profile: Profile | null; reload: () => void }>({ userId: null, profile: null, reload: () => {} });
@@ -640,10 +640,16 @@ function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
 // ============ SHELL (LAYOUT) ============
 function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false); const [notifOpen, setNotifOpen] = useState(false); const [fabOpen, setFabOpen] = useState(false);
-  const { screen, go, viewId, viewUsername, chatId, chatName, closeChat, viewFollowing } = useNav();
+  const { screen, go, viewId, viewUsername, chatId, chatName, closeChat, viewFollowing, openUser } = useNav();
   const { userId, profile } = useAuth();
   const [me, setMe] = useState(profile); const [userMenuOpen, setUserMenuOpen] = useState(false);
   useEffect(() => { if (!userId) { setMe(profile); return; } const load = async () => { const { data } = await sb.from('profiles').select('*').eq('id', userId).single(); if (data) setMe(data); }; load(); window.addEventListener('glo-refresh', load); return () => window.removeEventListener('glo-refresh', load); }, [userId, profile]);
+  const [notifs, setNotifs] = useState<Notif[]>([]); const unread = notifs.filter((n) => !n.read).length;
+  useEffect(() => { if (!userId) { setNotifs([]); return; } const load = async () => { const list = await fetchNotifications(); setNotifs(list); }; load(); const t = setInterval(load, 20000); window.addEventListener('glo-refresh', load); return () => { clearInterval(t); window.removeEventListener('glo-refresh', load); }; }, [userId]);
+  const notifIcon = (t: string) => t === 'like' ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg> : t === 'repost' ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg> : t === 'reply' ? <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-4.9a8.4 8.4 0 1 1 16-4.6z" /></svg> : t === 'follow' ? IC.users : IC.pen;
+  const notifColor = (t: string) => t === 'like' ? 'pink' : t === 'repost' ? 'green' : t === 'post' ? 'gold' : '';
+  const notifLabel = (t: string) => t === 'like' ? 'liked your post' : t === 'repost' ? 'reposted your post' : t === 'reply' ? 'replied to your post' : t === 'follow' ? 'followed you' : 'shared a new post';
+  const openNotif = (n: Notif) => { if (!n.read) { setNotifs((cur) => cur.map((x) => x.id === n.id ? { ...x, read: true } : x)); markNotifRead(n.id); } setNotifOpen(false); if (n.actor) openUser(n.actor.id, n.actor.username); };
   const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: viewUsername || 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
   const nav = (s: string) => { if (s === 'quix') { window.open('https://chat-quix.vercel.app', '_blank', 'noopener,noreferrer'); setOpen(false); return; } if (['messages', 'bookmarks', 'settings', 'profile'].includes(s) && !userId) { window.location.href = '/?mode=login'; return; } go(s); setOpen(false); };
   const handleCreate = (type: 'post' | 'story') => { setFabOpen(false); if (!userId) { window.location.href = '/?mode=login'; return; } window.dispatchEvent(new Event(type === 'post' ? 'glo-compose-post' : 'glo-compose-story')); };
@@ -686,7 +692,7 @@ function Shell({ children }: { children: ReactNode }) {
         <header>
           {(isUser || isChat) ? <button className="icon-btn" onClick={() => { if (isChat) { closeChat(); } else { go('home'); } }} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
           <div className={isHome ? 'wordmark' : 'page-title'} style={{ flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isHome ? <>Glo<i>.</i></> : isChat ? chatName : T[screen]}</div>
-          {isHome && <button className="icon-btn" onClick={() => { if (!userId) { window.location.href = '/?mode=login'; return; } setOpen(false); setNotifOpen(!notifOpen); }} aria-label="Notifications"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg></button>}
+          {isHome && <div style={{ position: 'relative' }}><button className="icon-btn" onClick={() => { if (!userId) { window.location.href = '/?mode=login'; return; } setOpen(false); setNotifOpen(!notifOpen); }} aria-label="Notifications"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg></button>{unread > 0 && <span className="notif-dot">{unread > 9 ? '9+' : unread}</span>}</div>}
           {isUser && userId && viewFollowing && (
             <div style={{ position: 'relative' }}>
               <button className="icon-btn" onClick={() => setUserMenuOpen(!userMenuOpen)} aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></svg></button>
@@ -710,7 +716,7 @@ function Shell({ children }: { children: ReactNode }) {
           <b>Notifications</b>
           <button className="icon-btn" onClick={() => setNotifOpen(false)} aria-label="Close notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
         </div>
-        <div className="notif-drawer-body"><Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." /></div>
+        <div className="notif-drawer-body">{notifs.length === 0 ? <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." /> : notifs.map((n) => (<div key={n.id} className={`notif ${n.read ? '' : 'unread'}`} onClick={() => openNotif(n)}><div className={`notif-icon ${notifColor(n.type)}`}>{notifIcon(n.type)}</div><div className="notif-info"><b>{n.actor?.display_name || 'Someone'}</b><p>{notifLabel(n.type)}</p><time>{timeAgo(n.created_at)}</time></div></div>))}</div>
       </aside>
     </>
   );
