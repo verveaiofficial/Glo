@@ -20,7 +20,10 @@ const NavCtx = createContext<{
   feedTab: string; setFeedTab: (t: string) => void;
   viewId: string | null; viewUsername: string;
   openUser: (id: string, username: string) => void;
-}>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, viewUsername: '', openUser: () => {} });
+  chatId: string | null; chatName: string;
+  openChat: (id: string, name: string) => void;
+  closeChat: () => void;
+}>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, viewUsername: '', openUser: () => {}, chatId: null, chatName: '', openChat: () => {}, closeChat: () => {} });
 const useNav = () => useContext(NavCtx);
 
 // ============ HOOKS ============
@@ -881,6 +884,7 @@ function ProfileScreen() {
 
 function MessageModal({ targetUserId, targetName, close }: { targetUserId: string; targetName: string; close: () => void }) {
   const toast = useToast();
+  const { openChat } = useNav();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const send = async () => {
@@ -888,7 +892,13 @@ function MessageModal({ targetUserId, targetName, close }: { targetUserId: strin
     setBusy(true);
     const res = await sendMessage(targetUserId, text.trim());
     setBusy(false);
-    if (res.error) { toast('Failed to send message.'); } else { toast('Message sent!'); setText(''); close(); window.dispatchEvent(new Event('glo-refresh')); }
+    if (res.error) { toast('Failed to send message.'); } else { 
+      toast('Message sent!'); 
+      setText(''); 
+      close(); 
+      openChat(targetUserId, targetName); 
+      window.dispatchEvent(new Event('glo-refresh')); 
+    }
   };
   return (
     <div className="post-modal">
@@ -941,8 +951,13 @@ function UserScreen() {
   }, [viewId, userId, tick]);
 
   useEffect(() => {
-    const h = (e: Event) => {
-      if ((e as CustomEvent).detail === viewId) { setFollowing(false); toast('Unfollowed.'); window.dispatchEvent(new Event('glo-refresh')); }
+    const h = async (e: Event) => {
+      if ((e as CustomEvent).detail === viewId && viewId) { 
+        await toggleFollow(viewId);
+        setFollowing(false); 
+        toast('Unfollowed.'); 
+        window.dispatchEvent(new Event('glo-refresh')); 
+      }
     };
     window.addEventListener('glo-unfollow', h);
     return () => window.removeEventListener('glo-unfollow', h);
@@ -951,7 +966,7 @@ function UserScreen() {
   if (!user || !viewId) return null;
 
   const handleFollow = async () => {
-    if (!userId) { toast('Log in to follow.'); return; }
+    if (!userId || !viewId) { if (!userId) toast('Log in to follow.'); return; }
     await toggleFollow(viewId);
     setFollowing(!following);
     toast(following ? `Unfollowed ${user.display_name}.` : `Following ${user.display_name}.`);
@@ -969,8 +984,17 @@ function UserScreen() {
           {user.avatar_url ? <img src={user.avatar_url} alt="Avatar" className="avatar avatar-img" /> : <div className={`avatar ${user.avatar_grad}`}>{user.display_name[0]}</div>}
           <div className="profile-actions">
             <button className="pbtn" onClick={() => { navigator.clipboard?.writeText(window.location.href); toast('Link copied.'); }}>Share</button>
-            {userId && userId !== viewId && <button className={`pbtn ${following ? 'on' : ''}`} onClick={handleFollow}>{following ? 'Following' : followsMe ? 'Follow back' : 'Follow'}</button>}
-            {userId && userId !== viewId && following && <button className="pbtn" onClick={() => setMsgOpen(true)}>Message</button>}
+            {userId && userId !== viewId && (
+              <button className={`pbtn ${following ? 'on' : ''}`} onClick={() => {
+                if (following) {
+                  setMsgOpen(true);
+                } else {
+                  handleFollow();
+                }
+              }}>
+                {following ? 'Message' : (followsMe ? 'Follow back' : 'Follow')}
+              </button>
+            )}
           </div>
         </div>
         <h2>{user.display_name} <VerifiedBadge type={user.verified} /></h2>
@@ -998,15 +1022,65 @@ function QuixPage() {
 
 function Messages() {
   const { userId } = useAuth();
+  const { chatId, openChat } = useNav();
+  const toast = useToast();
   const [m, setM] = useState<Msg[]>([]);
-  useRefresh(async () => {
+  const [chatMsgs, setChatMsgs] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const fetchMessages = async () => {
     if (!userId) return;
-    const { data } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
-    if (data) setM(data);
-  });
+    if (chatId) {
+      const { data: sent } = await sb.from('messages').select('*,recipient:profiles!messages_recipient_id_fkey(*)').eq('sender_id', userId).eq('recipient_id', chatId);
+      const { data: recv } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('sender_id', chatId).eq('recipient_id', userId);
+      const all = [...(sent || []), ...(recv || [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      setChatMsgs(all);
+    } else {
+      const { data } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
+      if (data) setM(data);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+    const h = () => fetchMessages();
+    window.addEventListener('glo-refresh', h);
+    return () => window.removeEventListener('glo-refresh', h);
+  }, [chatId, userId]);
+
   if (!userId) return <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />;
+
+  if (chatId) {
+    const sendMsg = async () => {
+      if (!chatInput.trim()) return;
+      setBusy(true);
+      const res = await sendMessage(chatId, chatInput.trim());
+      setBusy(false);
+      if (res.error) { toast('Failed to send.'); } else {
+        setChatInput('');
+        window.dispatchEvent(new Event('glo-refresh'));
+      }
+    };
+    return (
+      <div className="chat-page">
+        <div className="chat-body">
+          {chatMsgs.length === 0 ? <div className="empty">No messages yet. Say hi!</div> : chatMsgs.map((c) => (
+            <div key={c.id} className={`chat-bubble ${c.sender_id === userId ? 'mine' : 'theirs'}`}>
+              {c.content}
+            </div>
+          ))}
+        </div>
+        <div className="chat-input-row">
+          <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Message..." onKeyDown={(e) => e.key === 'Enter' && sendMsg()} />
+          <button className="post-btn" disabled={busy || !chatInput.trim()} onClick={sendMsg}>Send</button>
+        </div>
+      </div>
+    );
+  }
+
   return m.length === 0 ? <Empty icon={IC.mail} title="No messages" sub="Say hi to someone. It's free." /> : <>{m.map((x) => (
-    <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`}>
+    <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`} onClick={() => openChat(x.sender_id, x.sender?.display_name || '')} style={{cursor: 'pointer'}}>
       {x.sender?.avatar_url ? <img src={x.sender.avatar_url} alt="" className="avatar avatar-img" /> : <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>{(x.sender?.display_name || '?')[0]}</div>}
       <div className="msg-info"><div className="msg-top"><b>{x.sender?.display_name}</b><time>{timeAgo(x.created_at)}</time></div><p>{x.content}</p></div>
       {!x.read && <span className="dot" />}
@@ -1092,7 +1166,7 @@ function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
-  const { screen, go, viewId, viewUsername } = useNav();
+  const { screen, go, viewId, viewUsername, chatId, chatName, closeChat } = useNav();
   const { userId, profile } = useAuth();
   const [me, setMe] = useState(profile);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -1206,6 +1280,7 @@ function Shell({ children }: { children: ReactNode }) {
 
   const isHome = screen === 'home';
   const isUser = screen === 'user';
+  const isChat = screen === 'messages' && !!chatId;
 
   return (
     <>
@@ -1241,8 +1316,8 @@ function Shell({ children }: { children: ReactNode }) {
 
       <div className="wrap">
         <header>
-          {isUser ? <button className="icon-btn" onClick={() => go('home')} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
-          <div className={isHome ? 'wordmark' : 'page-title'} style={{ flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isHome ? <>Glo<i>.</i></> : T[screen]}</div>
+          {(isUser || isChat) ? <button className="icon-btn" onClick={() => { if (isChat) { closeChat(); } else { go('home'); } }} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
+          <div className={isHome ? 'wordmark' : 'page-title'} style={{ flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isHome ? <>Glo<i>.</i></> : isChat ? chatName : T[screen]}</div>
           {isHome && <button className="icon-btn" onClick={() => { if (!userId) { window.location.href = '/?mode=login'; return; } setOpen(false); setNotifOpen(!notifOpen); }} aria-label="Notifications"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg></button>}
           {isUser && (
             <div style={{ position: 'relative' }}>
@@ -1264,58 +1339,37 @@ function Shell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <nav
-        id="notifDrawer"
-        style={{
-          position: 'fixed',
-          top: 0,
-          bottom: 0,
-          right: notifOpen ? 0 : -340,
-          width: 320,
-          maxWidth: '88vw',
-          background: 'var(--bg, #000)',
-          borderLeft: '1px solid var(--gbrd-soft, rgba(255,255,255,0.1))',
-          zIndex: 1200,
-          transition: 'right .28s ease',
-          overflowY: 'auto',
-          padding: 16,
-          boxShadow: notifOpen ? '0 0 30px rgba(0,0,0,.35)' : 'none'
-        }}
-        aria-hidden={!notifOpen}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <b style={{ fontSize: 17 }}>Notifications</b>
+      <aside id="notifDrawer" className={notifOpen ? 'open' : ''}>
+        <div className="notif-drawer-head">
+          <b>Notifications</b>
           <button className="icon-btn" onClick={() => setNotifOpen(false)} aria-label="Close notifications">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
-
-        {!userId ? (
-          <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />
-        ) : notifs.length === 0 ? (
-          <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." />
-        ) : (
-          notifs.map((n) => (
-            <div
-              key={n.id}
-              className="rise"
-              style={{ display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--gbrd-soft, rgba(255,255,255,0.08))' }}
-            >
-              {n.actor?.avatar_url ? (
-                <img src={n.actor.avatar_url} alt="" className="avatar avatar-img" style={{ width: 38, height: 38 }} />
-              ) : (
-                <div className={`avatar ${n.actor?.avatar_grad || 'av-1'}`} style={{ width: 38, height: 38 }}>
-                  {(n.actor?.display_name || '?')[0]}
+        <div className="notif-drawer-body">
+          {!userId ? (
+            <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />
+          ) : notifs.length === 0 ? (
+            <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." />
+          ) : (
+            notifs.map((n) => (
+              <div key={n.id} className="notif rise">
+                {n.actor?.avatar_url ? (
+                  <img src={n.actor.avatar_url} alt="" className="avatar avatar-img" style={{ width: 38, height: 38 }} />
+                ) : (
+                  <div className={`avatar ${n.actor?.avatar_grad || 'av-1'}`} style={{ width: 38, height: 38 }}>
+                    {(n.actor?.display_name || '?')[0]}
+                  </div>
+                )}
+                <div className="notif-info">
+                  <b>{notifText(n)}</b>
+                  {n.created_at && <time>{timeAgo(n.created_at)}</time>}
                 </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, color: 'var(--text)' }}>{notifText(n)}</div>
-                {n.created_at && <div style={{ fontSize: 12.5, color: 'var(--dim, #8b98a5)', marginTop: 3 }}>{timeAgo(n.created_at)}</div>}
               </div>
-            </div>
-          ))
-        )}
-      </nav>
+            ))
+          )}
+        </div>
+      </aside>
     </>
   );
 }
@@ -1330,6 +1384,8 @@ export default function App() {
   const [feedTab, setFeedTab] = useState('foryou');
   const [viewId, setViewId] = useState<string | null>(null);
   const [viewUsername, setViewUsername] = useState('');
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatName, setChatName] = useState('');
 
   const loadUser = async () => {
     const { data: { user } } = await sb.auth.getUser();
@@ -1353,6 +1409,8 @@ export default function App() {
 
   const go = useCallback((s: string) => { setScreen(s); if (s !== 'user') { setViewId(null); setViewUsername(''); } }, []);
   const openUser = useCallback((id: string, username: string) => { setViewId(id); setViewUsername(username); setScreen('user'); }, []);
+  const openChat = useCallback((id: string, name: string) => { setChatId(id); setChatName(name); setScreen('messages'); }, []);
+  const closeChat = useCallback(() => { setChatId(null); setChatName(''); }, []);
 
   // Check URL for auth mode
   const urlParams = new URLSearchParams(window.location.search);
@@ -1380,7 +1438,7 @@ export default function App() {
   return (
     <AuthCtx.Provider value={{ userId, profile, reload: loadUser }}>
       <ToastCtx.Provider value={toast}>
-        <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser }}>
+        <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser, chatId, chatName, openChat, closeChat }}>
           <RippleFx />
           {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
           <Shell>
