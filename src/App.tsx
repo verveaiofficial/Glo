@@ -123,6 +123,145 @@ const IC = {
   lock: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>,
 };
 
+// ============ AVATAR CROP ============
+function AvatarCrop({ src, onDone, close }: { src: string; onDone: (f: File) => void; close: () => void }) {
+  const C = 240;
+  const OUT = 512;
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [ready, setReady] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+  const dragRef = useRef<{ sx: number; sy: number; bx: number; by: number } | null>(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      imgRef.current = img;
+      setDims({ w: img.naturalWidth, h: img.naturalHeight });
+      setReady(true);
+    };
+    img.src = src;
+  }, [src]);
+
+  const baseScale = dims.w && dims.h ? Math.max(C / dims.w, C / dims.h) : 1;
+  const scale = baseScale * zoom;
+  const imgW = dims.w * scale;
+  const imgH = dims.h * scale;
+
+  const clampPos = (x: number, y: number) => ({
+    x: Math.min(0, Math.max(C - imgW, x)),
+    y: Math.min(0, Math.max(C - imgH, y)),
+  });
+
+  useEffect(() => {
+    if (ready) setPos({ x: (C - imgW) / 2, y: (C - imgH) / 2 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
+
+  useEffect(() => {
+    setPos((p) => clampPos(p.x, p.y));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom, imgW, imgH]);
+
+  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    dragRef.current = { sx: e.clientX, sy: e.clientY, bx: pos.x, by: pos.y };
+  };
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = dragRef.current;
+    if (!d) return;
+    setPos(clampPos(d.bx + (e.clientX - d.sx), d.by + (e.clientY - d.sy)));
+  };
+  const onUp = () => { dragRef.current = null; };
+
+  const save = () => {
+    const img = imgRef.current;
+    if (!img || !ready) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = OUT;
+    canvas.height = OUT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const sx = -pos.x / scale;
+    const sy = -pos.y / scale;
+    const sw = C / scale;
+    const sh = C / scale;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUT, OUT);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], 'avatar-crop.png', { type: 'image/png' });
+      onDone(file);
+    }, 'image/png');
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ width: '100%', maxWidth: 360, background: 'var(--card, #0b0b0c)', border: '1px solid var(--gbrd-soft, rgba(255,255,255,.1))', borderRadius: 20, padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <b style={{ fontSize: 17 }}>Adjust photo</b>
+          <button className="icon-btn" onClick={close} aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          style={{
+            width: C,
+            height: C,
+            margin: '0 auto',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            position: 'relative',
+            touchAction: 'none',
+            cursor: 'grab',
+            background: 'rgba(255,255,255,.06)',
+            border: '2px solid var(--gbrd-soft, rgba(255,255,255,.15))'
+          }}
+        >
+          {ready && (
+            <img
+              src={src}
+              alt=""
+              draggable={false}
+              style={{
+                position: 'absolute',
+                left: pos.x,
+                top: pos.y,
+                width: imgW,
+                height: imgH,
+                maxWidth: 'none',
+                pointerEvents: 'none',
+                userSelect: 'none'
+              }}
+            />
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
+          <button className="icon-btn" onClick={() => setZoom((z) => Math.max(1, +(z - 0.25).toFixed(2)))} aria-label="Zoom out">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /></svg>
+          </button>
+          <input type="range" min={1} max={4} step={0.01} value={zoom} onChange={(e) => setZoom(parseFloat(e.target.value))} style={{ flex: 1 }} aria-label="Zoom" />
+          <button className="icon-btn" onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} aria-label="Zoom in">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button className="pbtn" style={{ flex: 1, justifyContent: 'center' }} onClick={close}>Cancel</button>
+          <button className="post-btn" style={{ flex: 1 }} disabled={!ready} onClick={save}>Apply</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============ POST CARD ============
 function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: boolean; reposted: boolean; bookmarked: boolean }) {
   const toast = useToast();
@@ -157,19 +296,7 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
       <div className="post-head">
         <button className="avatar" style={{ background: p?.avatar_url ? 'transparent' : undefined, padding: 0 }} onClick={() => p && openUser(p.id, p.username)}>
           {p?.avatar_url ? (
-            <span
-              style={{
-                display: 'block',
-                width: '100%',
-                height: '100%',
-                borderRadius: '50%',
-                backgroundImage: `url("${p.avatar_url}")`,
-                backgroundSize: 'contain',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat',
-                backgroundColor: 'rgba(255,255,255,0.06)'
-              }}
-            />
+            <img src={p.avatar_url} alt="" className="avatar avatar-img" />
           ) : (
             <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
           )}
@@ -568,6 +695,7 @@ function Explore() {
   );
 }
 
+// ============ EDIT PROFILE ============
 function EditProfile({ profile, close }: { profile: Profile; close: () => void }) {
   const toast = useToast();
   const { reload } = useAuth();
@@ -576,15 +704,29 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url || null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(profile.banner_url || null);
   const [busy, setBusy] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
-  const upload = async (file: File, type: 'avatar' | 'banner') => {
+  const uploadBanner = async (file: File) => {
     const url = await uploadMedia(file);
     if (!url) { toast('Upload failed.'); return; }
-    if (type === 'avatar') setAvatarUrl(url);
-    else setBannerUrl(url);
-    toast(type === 'avatar' ? 'Profile photo updated.' : 'Banner updated.');
+    setBannerUrl(url);
+    toast('Banner updated.');
+  };
+
+  const onAvatarFile = (f: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(String(reader.result));
+    reader.readAsDataURL(f);
+  };
+
+  const onCropDone = async (file: File) => {
+    setCropSrc(null);
+    const url = await uploadMedia(file);
+    if (!url) { toast('Upload failed.'); return; }
+    setAvatarUrl(url);
+    toast('Profile photo updated.');
   };
 
   const save = async () => {
@@ -613,19 +755,20 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
         <div className="banner-edit">
           {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
           <button className="icon-btn" onClick={() => bannerRef.current?.click()} aria-label="Change banner"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg></button>
-          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'banner'); e.target.value = ''; }} />
+          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadBanner(f); e.target.value = ''; }} />
         </div>
         <div className="avatar-edit-row">
           <div className="avatar-edit">
             {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="avatar avatar-img" /> : <div className={`avatar ${profile.avatar_grad}`}>{(name || 'A')[0]}</div>}
             <button className="icon-btn" onClick={() => avatarRef.current?.click()} aria-label="Change profile photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg></button>
-            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'avatar'); e.target.value = ''; }} />
+            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onAvatarFile(f); e.target.value = ''; }} />
           </div>
           <div><b>{name}</b><div style={{ color: 'var(--dim)', fontSize: 13.5 }}>@{profile.username}</div></div>
         </div>
         <input className="edit-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" />
         <textarea className="edit-in" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Bio" />
       </div>
+      {cropSrc && <AvatarCrop src={cropSrc} onDone={onCropDone} close={() => setCropSrc(null)} />}
     </div>
   );
 }
