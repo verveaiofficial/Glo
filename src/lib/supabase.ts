@@ -48,6 +48,7 @@ export type Notif = {
   actor_id: string;
   type: string;
   post_id: string | null;
+  read: boolean;
   created_at: string;
   actor: Profile;
 };
@@ -79,16 +80,8 @@ export const fmt = (n: number) => {
 
 // Auth
 export const signUp = async (email: string, password: string, username: string) => {
-  const { data, error } = await sb.auth.signUp({ email, password });
+  const { data, error } = await sb.auth.signUp({ email, password, options: { data: { username, display_name: username, avatar_grad: 'av-' + Math.ceil(Math.random() * 5) } } });
   if (error) return { error: error.message };
-  if (data.user) {
-    await sb.from('profiles').insert({
-      id: data.user.id,
-      username,
-      display_name: username,
-      avatar_grad: 'av-' + Math.ceil(Math.random() * 5)
-    });
-  }
   return { data };
 };
 
@@ -194,6 +187,18 @@ export const uploadMedia = async (file: File): Promise<string | null> => {
   if (error) return null;
   const { data } = sb.storage.from('media').getPublicUrl(path);
   return data.publicUrl;
+};
+
+// Notifications
+export const fetchNotifications = async (): Promise<Notif[]> => {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return [];
+  const { data } = await sb.from('notifications').select('*, actor:actor_id(*)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(60);
+  return (data as Notif[]) || [];
+};
+
+export const markNotifRead = async (id: string) => {
+  await sb.from('notifications').update({ read: true }).eq('id', id);
 };
 
 // Send message
