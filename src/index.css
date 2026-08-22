@@ -257,6 +257,10 @@ header { position: sticky; top: 0; z-index: 50; display: flex; align-items: cent
 .notif:hover { background: var(--glass); }
 .notif-icon { width: 34px; height: 34px; border-radius: 50%; background: var(--blue-soft); color: var(--blue); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .notif-icon.gold { background: var(--gold-soft); color: var(--gold); }
+.notif-icon.pink { background: var(--pink-soft); color: var(--pink); }
+.notif-icon.green { background: var(--green-soft); color: var(--green); }
+.notif.unread { background: rgba(46, 111, 142, 0.06); }
+.notif-dot { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 9999px; background: var(--pink); color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .notif-info { flex: 1; min-width: 0; }
 .notif-info b { font-size: 14.5px; }
 .notif-info p { font-size: 14px; color: var(--text); margin-top: 2px; line-height: 1.45; }
