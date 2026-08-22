@@ -185,6 +185,7 @@ header { position: sticky; top: 0; z-index: 50; display: flex; align-items: cent
 
 .actions { display: flex; justify-content: space-between; max-width: 430px; margin-top: 12px; }
 .act { position: relative; display: flex; align-items: center; gap: 6px; color: var(--dim); font-size: 13px; padding: 5px 8px; border-radius: 9999px; transition: color 0.2s ease, background 0.2s ease; }
+.act button { padding: 0; display: flex; align-items: center; font: inherit; color: inherit; }
 .act.reply:hover { color: var(--blue); background: var(--blue-soft); }
 .act.repost:hover { color: var(--green); background: var(--green-soft); }
 .act.repost.on { color: var(--green); }
