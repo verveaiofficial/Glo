@@ -20,7 +20,10 @@ const NavCtx = createContext<{
   feedTab: string; setFeedTab: (t: string) => void;
   viewId: string | null; viewUsername: string;
   openUser: (id: string, username: string) => void;
-}>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, viewUsername: '', openUser: () => {} });
+  chatId: string | null; chatName: string;
+  openChat: (id: string, name: string) => void;
+  closeChat: () => void;
+}>({ screen: 'home', go: () => {}, feedTab: 'foryou', setFeedTab: () => {}, viewId: null, viewUsername: '', openUser: () => {}, chatId: null, chatName: '', openChat: () => {}, closeChat: () => {} });
 const useNav = () => useContext(NavCtx);
 
 // ============ HOOKS ============
@@ -31,55 +34,6 @@ function useRefresh(fn: () => void) {
     window.addEventListener('glo-refresh', h);
     return () => window.removeEventListener('glo-refresh', h);
   }, []);
-}
-
-// ============ GLOBAL FX (RIPPLE) ============
-function RippleFx() {
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      .glo-ripple {
-        position: absolute;
-        border-radius: 50%;
-        transform: scale(0);
-        animation: glo-ripple .55s ease-out;
-        background: rgba(255,255,255,.25);
-        pointer-events: none;
-      }
-      @keyframes glo-ripple {
-        to { transform: scale(3.2); opacity: 0; }
-      }
-    `;
-    document.head.appendChild(style);
-
-    const onDown = (e: PointerEvent) => {
-      const btn = (e.target as HTMLElement).closest('button');
-      if (!btn) return;
-
-      const cs = getComputedStyle(btn);
-      if (cs.position === 'static') btn.style.position = 'relative';
-      if (cs.overflow === 'visible') btn.style.overflow = 'hidden';
-
-      const rect = btn.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height);
-      const span = document.createElement('span');
-      span.className = 'glo-ripple';
-      span.style.width = size + 'px';
-      span.style.height = size + 'px';
-      span.style.left = (e.clientX - rect.left - size / 2) + 'px';
-      span.style.top = (e.clientY - rect.top - size / 2) + 'px';
-      btn.appendChild(span);
-      setTimeout(() => span.remove(), 600);
-    };
-
-    document.addEventListener('pointerdown', onDown);
-    return () => {
-      document.removeEventListener('pointerdown', onDown);
-      style.remove();
-    };
-  }, []);
-
-  return null;
 }
 
 // ============ SMALL COMPONENTS ============
@@ -123,145 +77,6 @@ const IC = {
   lock: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>,
 };
 
-// ============ AVATAR CROP ============
-function AvatarCrop({ src, onDone, close }: { src: string; onDone: (f: File) => void; close: () => void }) {
-  const C = 240;
-  const OUT = 512;
-  const imgRef = useRef<HTMLImageElement | null>(null);
-  const [ready, setReady] = useState(false);
-  const [zoom, setZoom] = useState(1);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [dims, setDims] = useState({ w: 0, h: 0 });
-  const dragRef = useRef<{ sx: number; sy: number; bx: number; by: number } | null>(null);
-
-  useEffect(() => {
-    const img = new Image();
-    img.onload = () => {
-      imgRef.current = img;
-      setDims({ w: img.naturalWidth, h: img.naturalHeight });
-      setReady(true);
-    };
-    img.src = src;
-  }, [src]);
-
-  const baseScale = dims.w && dims.h ? Math.max(C / dims.w, C / dims.h) : 1;
-  const scale = baseScale * zoom;
-  const imgW = dims.w * scale;
-  const imgH = dims.h * scale;
-
-  const clampPos = (x: number, y: number) => ({
-    x: Math.min(0, Math.max(C - imgW, x)),
-    y: Math.min(0, Math.max(C - imgH, y)),
-  });
-
-  useEffect(() => {
-    if (ready) setPos({ x: (C - imgW) / 2, y: (C - imgH) / 2 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
-
-  useEffect(() => {
-    setPos((p) => clampPos(p.x, p.y));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, imgW, imgH]);
-
-  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-    dragRef.current = { sx: e.clientX, sy: e.clientY, bx: pos.x, by: pos.y };
-  };
-  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const d = dragRef.current;
-    if (!d) return;
-    setPos(clampPos(d.bx + (e.clientX - d.sx), d.by + (e.clientY - d.sy)));
-  };
-  const onUp = () => { dragRef.current = null; };
-
-  const save = () => {
-    const img = imgRef.current;
-    if (!img || !ready) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = OUT;
-    canvas.height = OUT;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const sx = -pos.x / scale;
-    const sy = -pos.y / scale;
-    const sw = C / scale;
-    const sh = C / scale;
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, OUT, OUT);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], 'avatar-crop.png', { type: 'image/png' });
-      onDone(file);
-    }, 'image/png');
-  };
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 360, background: 'var(--card, #0b0b0c)', border: '1px solid var(--gbrd-soft, rgba(255,255,255,.1))', borderRadius: 20, padding: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <b style={{ fontSize: 17 }}>Adjust photo</b>
-          <button className="icon-btn" onClick={close} aria-label="Close">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        <div
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          style={{
-            width: C,
-            height: C,
-            margin: '0 auto',
-            borderRadius: '50%',
-            overflow: 'hidden',
-            position: 'relative',
-            touchAction: 'none',
-            cursor: 'grab',
-            background: 'rgba(255,255,255,.06)',
-            border: '2px solid var(--gbrd-soft, rgba(255,255,255,.15))'
-          }}
-        >
-          {ready && (
-            <img
-              src={src}
-              alt=""
-              draggable={false}
-              style={{
-                position: 'absolute',
-                left: pos.x,
-                top: pos.y,
-                width: imgW,
-                height: imgH,
-                maxWidth: 'none',
-                pointerEvents: 'none',
-                userSelect: 'none'
-              }}
-            />
-          )}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 16 }}>
-          <button className="icon-btn" onClick={() => setZoom((z) => Math.max(1, +(z - 0.25).toFixed(2)))} aria-label="Zoom out">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14" /></svg>
-          </button>
-          <input type="range" min={1} max={4} step={0.01} value={zoom} onChange={(e) => setZoom(parseFloat(e.target.value))} style={{ flex: 1 }} aria-label="Zoom" />
-          <button className="icon-btn" onClick={() => setZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))} aria-label="Zoom in">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14" /></svg>
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <button className="pbtn" style={{ flex: 1, justifyContent: 'center' }} onClick={close}>Cancel</button>
-          <button className="post-btn" style={{ flex: 1 }} disabled={!ready} onClick={save}>Apply</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ============ POST CARD ============
 function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: boolean; reposted: boolean; bookmarked: boolean }) {
   const toast = useToast();
@@ -275,31 +90,12 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
   const p = post.profiles;
 
   const guard = () => { if (!userId) { toast('Log in first.'); return true; } return false; };
-  const canDelete = userId === post.user_id;
-
-  const del = async () => {
-    if (!canDelete) return;
-    if (!window.confirm('Delete this post?')) return;
-
-    const { error } = await sb.from('posts').delete().eq('id', post.id);
-    if (error) {
-      toast('Could not delete post.');
-      return;
-    }
-
-    toast('Post deleted.');
-    window.dispatchEvent(new Event('glo-refresh'));
-  };
 
   return (
     <article className="post rise">
       <div className="post-head">
         <button className="avatar" style={{ background: p?.avatar_url ? 'transparent' : undefined, padding: 0 }} onClick={() => p && openUser(p.id, p.username)}>
-          {p?.avatar_url ? (
-            <img src={p.avatar_url} alt="" className="avatar avatar-img" />
-          ) : (
-            <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>
-          )}
+          {p?.avatar_url ? <img src={p.avatar_url} alt="" className="avatar-img" /> : <div className={`avatar ${p?.avatar_grad || 'av-1'}`}>{(p?.display_name || '?')[0]}</div>}
         </button>
         <div className="post-body">
           <div className="post-user">
@@ -310,49 +106,24 @@ function PostCard({ post, liked, reposted, bookmarked }: { post: Post; liked: bo
           <div className="post-text">{post.content}</div>
           {post.media_url && <img src={post.media_url} alt="" style={{ marginTop: 12, height: 200, objectFit: 'cover', width: '100%', borderRadius: 16, border: '1px solid var(--gbrd-soft)' }} />}
           <div className="actions">
-            <button type="button" className="act reply" onClick={() => { if (guard()) return; toast('Replies coming soon.'); }}>
+            <button className="act reply" onClick={() => { if (guard()) return; toast('Replies coming soon.'); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-4.9a8.4 8.4 0 1 1 16-4.6z" /></svg>
               <span>{fmt(post.replies_count)}</span>
             </button>
-            <button type="button" className={`act repost ${rp ? 'on' : ''}`} onClick={() => { if (guard()) return; setRp(!rp); setRc(rc + (rp ? -1 : 1)); toggleRepost(post.id); }}>
+            <button className={`act repost ${rp ? 'on' : ''}`} onClick={() => { if (guard()) return; setRp(!rp); setRc(rc + (rp ? -1 : 1)); toggleRepost(post.id); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m17 2 4 4-4 4" /><path d="M3 11v-1a4 4 0 0 1 4-4h14" /><path d="m7 22-4-4 4-4" /><path d="M21 13v1a4 4 0 0 1-4 4H3" /></svg>
               <span>{fmt(rc)}</span>
             </button>
-            <button type="button" className={`act like ${lk ? 'on' : ''}`} onClick={() => { if (guard()) return; const on = !lk; setLk(on); setLp(lp + (on ? 1 : -1)); toggleLike(post.id); }}>
+            <button className={`act like ${lk ? 'on' : ''}`} onClick={() => { if (guard()) return; const on = !lk; setLk(on); setLp(lp + (on ? 1 : -1)); toggleLike(post.id); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3.4 1-4.5 2.5C10.9 4 9.3 3 7.5 3A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" /></svg>
               <span>{fmt(lp)}</span>
             </button>
-            <button
-              type="button"
-              className={`act bm ${bm ? 'on' : ''}`}
-              aria-label={bm ? 'Remove bookmark' : 'Save to bookmarks'}
-              title={bm ? 'Remove bookmark' : 'Save to bookmarks'}
-              style={{ minWidth: 44, minHeight: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
-              onClick={() => { if (guard()) return; setBm(!bm); toggleBookmark(post.id); toast(bm ? 'Removed from bookmarks.' : 'Saved to bookmarks.'); }}
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ pointerEvents: 'none' }}><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+            <button className={`act bm ${bm ? 'on' : ''}`} onClick={() => { if (guard()) return; setBm(!bm); toggleBookmark(post.id); toast(bm ? 'Removed from bookmarks.' : 'Saved to bookmarks.'); }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
             </button>
-            <button type="button" className="act share" onClick={() => { if (guard()) return; toast('Link copied.'); }}>
+            <button className="act share" onClick={() => { if (guard()) return; toast('Link copied.'); }}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v13" /><path d="m7 8 5-5 5 5" /><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
             </button>
-            {canDelete && (
-              <button
-                type="button"
-                className="act share"
-                aria-label="Delete post"
-                title="Delete post"
-                style={{ color: '#f4212e', minWidth: 44, minHeight: 38, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 8 }}
-                onClick={del}
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ pointerEvents: 'none' }}>
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                </svg>
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -437,7 +208,7 @@ function Stories() {
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await sb.from('stories').select('*,profiles:user_id(*)').gt('expires_at', new Date().toISOString()).order('created_at');
+      const { data } = await sb.from('stories').select('*,profiles(*)').gt('expires_at', new Date().toISOString()).order('created_at');
       setStories(data || []);
     };
     load();
@@ -614,7 +385,7 @@ function Home() {
   }, []);
 
   const load = async () => {
-    const { data } = await sb.from('posts').select('*,profiles:user_id(*)').is('parent_id', null).order('created_at', { ascending: false });
+    const { data } = await sb.from('posts').select('*,profiles(*)').is('parent_id', null).order('created_at', { ascending: false });
     if (data) setPosts(data);
     if (userId) {
       const [l, r, b, f] = await Promise.all([
@@ -659,23 +430,14 @@ function Explore() {
   const { userId } = useAuth();
   const [accs, setAccs] = useState<Profile[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
-  const [ready, setReady] = useState(false);
 
   useRefresh(async () => {
-    const accRes = userId
-      ? await sb.from('profiles').select('*').neq('id', userId).order('followers_count', { ascending: false })
-      : await sb.from('profiles').select('*').order('followers_count', { ascending: false });
-
-    if (accRes.data) setAccs(accRes.data);
-
+    const { data } = await sb.from('profiles').select('*').neq('id', userId || '').order('followers_count', { ascending: false });
+    if (data) setAccs(data);
     if (userId) {
       const { data: f } = await sb.from('follows').select('following_id').eq('follower_id', userId);
       setFollowing((f || []).map((x: any) => x.following_id));
-    } else {
-      setFollowing([]);
     }
-
-    setReady(true);
   });
 
   const visible = accs.filter((a) => !following.includes(a.id));
@@ -686,16 +448,11 @@ function Explore() {
         <input placeholder="Search people..." onInput={(e: any) => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#accList .account').forEach((a: any) => { a.style.display = a.textContent.toLowerCase().includes(q) ? '' : 'none'; }); }} />
       </div>
       <div className="sec-label">Suggested for you</div>
-      {!ready ? null : visible.length === 0 ? (
-        <Empty icon={IC.users} title="No one to explore yet" sub="When people join Glo, they'll show up here." />
-      ) : (
-        <div id="accList">{visible.map((a) => (<AccountRow key={a.id} acc={a} following={following.includes(a.id)} />))}</div>
-      )}
+      {visible.length === 0 ? <Empty icon={IC.users} title="No one to explore yet" sub="When people join Glo, they'll show up here." /> : <div id="accList">{visible.map((a) => (<AccountRow key={a.id} acc={a} following={following.includes(a.id)} />))}</div>}
     </>
   );
 }
 
-// ============ EDIT PROFILE ============
 function EditProfile({ profile, close }: { profile: Profile; close: () => void }) {
   const toast = useToast();
   const { reload } = useAuth();
@@ -704,29 +461,15 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatar_url || null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(profile.banner_url || null);
   const [busy, setBusy] = useState(false);
-  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
-  const uploadBanner = async (file: File) => {
+  const upload = async (file: File, type: 'avatar' | 'banner') => {
     const url = await uploadMedia(file);
     if (!url) { toast('Upload failed.'); return; }
-    setBannerUrl(url);
-    toast('Banner updated.');
-  };
-
-  const onAvatarFile = (f: File) => {
-    const reader = new FileReader();
-    reader.onload = () => setCropSrc(String(reader.result));
-    reader.readAsDataURL(f);
-  };
-
-  const onCropDone = async (file: File) => {
-    setCropSrc(null);
-    const url = await uploadMedia(file);
-    if (!url) { toast('Upload failed.'); return; }
-    setAvatarUrl(url);
-    toast('Profile photo updated.');
+    if (type === 'avatar') setAvatarUrl(url);
+    else setBannerUrl(url);
+    toast(type === 'avatar' ? 'Profile photo updated.' : 'Banner updated.');
   };
 
   const save = async () => {
@@ -755,20 +498,19 @@ function EditProfile({ profile, close }: { profile: Profile; close: () => void }
         <div className="banner-edit">
           {bannerUrl ? <img src={bannerUrl} alt="Banner" /> : null}
           <button className="icon-btn" onClick={() => bannerRef.current?.click()} aria-label="Change banner"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg></button>
-          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadBanner(f); e.target.value = ''; }} />
+          <input ref={bannerRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'banner'); e.target.value = ''; }} />
         </div>
         <div className="avatar-edit-row">
           <div className="avatar-edit">
             {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="avatar avatar-img" /> : <div className={`avatar ${profile.avatar_grad}`}>{(name || 'A')[0]}</div>}
             <button className="icon-btn" onClick={() => avatarRef.current?.click()} aria-label="Change profile photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-4.5-4.5L6 21" /></svg></button>
-            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onAvatarFile(f); e.target.value = ''; }} />
+            <input ref={avatarRef} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f, 'avatar'); e.target.value = ''; }} />
           </div>
           <div><b>{name}</b><div style={{ color: 'var(--dim)', fontSize: 13.5 }}>@{profile.username}</div></div>
         </div>
         <input className="edit-in" value={name} onChange={(e) => setName(e.target.value)} placeholder="Display name" />
         <textarea className="edit-in" rows={4} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Bio" />
       </div>
-      {cropSrc && <AvatarCrop src={cropSrc} onDone={onCropDone} close={() => setCropSrc(null)} />}
     </div>
   );
 }
@@ -828,8 +570,8 @@ function ProfileScreen() {
   useRefresh(async () => {
     if (!userId) return;
     const [p, r, rp, lk, bm] = await Promise.all([
-      sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
-      sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
+      sb.from('posts').select('*,profiles(*)').eq('user_id', userId).is('parent_id', null).order('created_at', { ascending: false }),
+      sb.from('posts').select('*,profiles(*)').eq('user_id', userId).not('parent_id', 'is', null).order('created_at', { ascending: false }),
       sb.from('reposts').select('post_id').eq('user_id', userId),
       sb.from('likes').select('post_id').eq('user_id', userId),
       sb.from('bookmarks').select('post_id').eq('user_id', userId),
@@ -839,8 +581,8 @@ function ProfileScreen() {
     const bmIds = (bm.data || []).map((x: any) => x.post_id);
     let reposts: Post[] = [];
     let likes: Post[] = [];
-    if (rpIds.length) { const q = await sb.from('posts').select('*,profiles:user_id(*)').in('id', rpIds); reposts = q.data || []; }
-    if (lkIds.length) { const q = await sb.from('posts').select('*,profiles:user_id(*)').in('id', lkIds); likes = q.data || []; }
+    if (rpIds.length) { const q = await sb.from('posts').select('*,profiles(*)').in('id', rpIds); reposts = q.data || []; }
+    if (lkIds.length) { const q = await sb.from('posts').select('*,profiles(*)').in('id', lkIds); likes = q.data || []; }
     setData({ posts: p.data || [], replies: r.data || [], reposts, likes, rpIds, lkIds, bmIds });
   });
 
@@ -881,6 +623,7 @@ function ProfileScreen() {
 
 function MessageModal({ targetUserId, targetName, close }: { targetUserId: string; targetName: string; close: () => void }) {
   const toast = useToast();
+  const { openChat } = useNav();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const send = async () => {
@@ -888,7 +631,7 @@ function MessageModal({ targetUserId, targetName, close }: { targetUserId: strin
     setBusy(true);
     const res = await sendMessage(targetUserId, text.trim());
     setBusy(false);
-    if (res.error) { toast('Failed to send message.'); } else { toast('Message sent!'); setText(''); close(); window.dispatchEvent(new Event('glo-refresh')); }
+    if (res.error) { toast('Failed to send message.'); } else { toast('Message sent!'); setText(''); close(); openChat(targetUserId, targetName); window.dispatchEvent(new Event('glo-refresh')); }
   };
   return (
     <div className="post-modal">
@@ -912,13 +655,6 @@ function UserScreen() {
   const [tab, setTab] = useState('posts');
   const [msgOpen, setMsgOpen] = useState(false);
   const [data, setData] = useState({ posts: [] as Post[], reposts: [] as Post[], rpIds: [] as string[] });
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const h = () => setTick((t) => t + 1);
-    window.addEventListener('glo-refresh', h);
-    return () => window.removeEventListener('glo-refresh', h);
-  }, []);
 
   useEffect(() => {
     if (!viewId) return;
@@ -929,16 +665,16 @@ function UserScreen() {
       setFollowing(!!f);
       const { data: fm } = await sb.from('follows').select('*').eq('follower_id', viewId).eq('following_id', userId || '').maybeSingle();
       setFollowsMe(!!fm);
-      const { data: p } = await sb.from('posts').select('*,profiles:user_id(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
+      const { data: p } = await sb.from('posts').select('*,profiles(*)').eq('user_id', viewId).is('parent_id', null).order('created_at', { ascending: false });
       if (p) setData((d) => ({ ...d, posts: p }));
       const { data: rp } = await sb.from('reposts').select('post_id').eq('user_id', viewId);
       const rpIds = (rp || []).map((x: any) => x.post_id);
       if (rpIds.length) {
-        const { data: rpPosts } = await sb.from('posts').select('*,profiles:user_id(*)').in('id', rpIds);
+        const { data: rpPosts } = await sb.from('posts').select('*,profiles(*)').in('id', rpIds);
         setData((d) => ({ ...d, reposts: rpPosts || [], rpIds }));
       }
     })();
-  }, [viewId, userId, tick]);
+  }, [viewId, userId]);
 
   useEffect(() => {
     const h = (e: Event) => {
@@ -969,8 +705,17 @@ function UserScreen() {
           {user.avatar_url ? <img src={user.avatar_url} alt="Avatar" className="avatar avatar-img" /> : <div className={`avatar ${user.avatar_grad}`}>{user.display_name[0]}</div>}
           <div className="profile-actions">
             <button className="pbtn" onClick={() => { navigator.clipboard?.writeText(window.location.href); toast('Link copied.'); }}>Share</button>
-            {userId && userId !== viewId && <button className={`pbtn ${following ? 'on' : ''}`} onClick={handleFollow}>{following ? 'Following' : followsMe ? 'Follow back' : 'Follow'}</button>}
-            {userId && userId !== viewId && following && <button className="pbtn" onClick={() => setMsgOpen(true)}>Message</button>}
+            {userId && userId !== viewId && (
+              <button className={`pbtn ${following ? 'on' : ''}`} onClick={() => {
+                if (following) {
+                  setMsgOpen(true);
+                } else {
+                  handleFollow();
+                }
+              }}>
+                {following ? 'Message' : (followsMe ? 'Follow back' : 'Follow')}
+              </button>
+            )}
           </div>
         </div>
         <h2>{user.display_name} <VerifiedBadge type={user.verified} /></h2>
@@ -989,24 +734,70 @@ function UserScreen() {
 }
 
 function QuixPage() {
-  useEffect(() => {
-    window.open('https://chat-quix.vercel.app', '_blank', 'noopener,noreferrer');
-  }, []);
-
-  return null;
+  return <div style={{ position: 'fixed', top: 60, left: 0, right: 0, bottom: 0, background: '#000' }}><iframe src="https://chat-quix.vercel.app" style={{ width: '100%', height: '100%', border: 'none' }} /></div>;
 }
 
 function Messages() {
   const { userId } = useAuth();
+  const { chatId, chatName, openChat } = useNav();
+  const toast = useToast();
   const [m, setM] = useState<Msg[]>([]);
-  useRefresh(async () => {
+  const [chatMsgs, setChatMsgs] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const fetchMessages = async () => {
     if (!userId) return;
-    const { data } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
-    if (data) setM(data);
-  });
+    if (chatId) {
+      const { data: sent } = await sb.from('messages').select('*,recipient:profiles!messages_recipient_id_fkey(*)').eq('sender_id', userId).eq('recipient_id', chatId);
+      const { data: recv } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('sender_id', chatId).eq('recipient_id', userId);
+      const all = [...(sent || []), ...(recv || [])].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      setChatMsgs(all);
+    } else {
+      const { data } = await sb.from('messages').select('*,sender:profiles!messages_sender_id_fkey(*)').eq('recipient_id', userId).order('created_at', { ascending: false });
+      if (data) setM(data);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+    const h = () => fetchMessages();
+    window.addEventListener('glo-refresh', h);
+    return () => window.removeEventListener('glo-refresh', h);
+  }, [chatId, userId]);
+
   if (!userId) return <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />;
+
+  if (chatId) {
+    const sendMsg = async () => {
+      if (!chatInput.trim()) return;
+      setBusy(true);
+      const res = await sendMessage(chatId, chatInput.trim());
+      setBusy(false);
+      if (res.error) { toast('Failed to send.'); } else { 
+        setChatInput(''); 
+        window.dispatchEvent(new Event('glo-refresh'));
+      }
+    };
+    return (
+      <div className="chat-page">
+        <div className="chat-body">
+          {chatMsgs.length === 0 ? <div className="empty">No messages yet. Say hi!</div> : chatMsgs.map((c) => (
+            <div key={c.id} className={`chat-bubble ${c.sender_id === userId ? 'mine' : 'theirs'}`}>
+              {c.content}
+            </div>
+          ))}
+        </div>
+        <div className="chat-input-row">
+          <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Message..." onKeyDown={(e) => e.key === 'Enter' && sendMsg()} />
+          <button className="post-btn" disabled={busy || !chatInput.trim()} onClick={sendMsg}>Send</button>
+        </div>
+      </div>
+    );
+  }
+
   return m.length === 0 ? <Empty icon={IC.mail} title="No messages" sub="Say hi to someone. It's free." /> : <>{m.map((x) => (
-    <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`}>
+    <div key={x.id} className={`msg rise ${x.read ? '' : 'unread'}`} onClick={() => openChat(x.sender_id, x.sender?.display_name || '')}>
       {x.sender?.avatar_url ? <img src={x.sender.avatar_url} alt="" className="avatar avatar-img" /> : <div className={`avatar ${x.sender?.avatar_grad || 'av-1'}`}>{(x.sender?.display_name || '?')[0]}</div>}
       <div className="msg-info"><div className="msg-top"><b>{x.sender?.display_name}</b><time>{timeAgo(x.created_at)}</time></div><p>{x.content}</p></div>
       {!x.read && <span className="dot" />}
@@ -1022,7 +813,7 @@ function Bookmarks() {
     const { data } = await sb.from('bookmarks').select('post_id').eq('user_id', userId);
     const ids = (data || []).map((x: any) => x.post_id);
     if (!ids.length) { setPosts([]); return; }
-    const { data: p } = await sb.from('posts').select('*,profiles:user_id(*)').in('id', ids);
+    const { data: p } = await sb.from('posts').select('*,profiles(*)').in('id', ids);
     if (p) setPosts(p);
   });
   if (!userId) return <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />;
@@ -1046,6 +837,7 @@ function Settings() {
 
 function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
   const toast = useToast();
+  const { reload } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
@@ -1057,20 +849,12 @@ function AuthScreen({ mode }: { mode: 'login' | 'signup' }) {
     const res = mode === 'signup' ? await signUp(email, password, username) : await signIn(email, password);
     setBusy(false);
     if (res.error) { toast(res.error); return; }
-    window.location.href = window.location.pathname;
+    toast(mode === 'signup' ? 'Account created!' : 'Welcome back!');
+    reload();
   };
 
   return (
     <div className="auth-wrap">
-      <button
-        className="icon-btn"
-        style={{ position: 'fixed', top: 16, left: 16, zIndex: 1000 }}
-        onClick={() => { window.location.href = window.location.pathname; }}
-        aria-label="Back"
-      >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
-      </button>
-
       <div className="auth-card">
         <h2 style={{ fontSize: 24 }}>{mode === 'signup' ? 'Create account' : 'Log in'}</h2>
         <div className="auth-form">
@@ -1092,11 +876,10 @@ function Shell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
-  const { screen, go, viewId, viewUsername } = useNav();
+  const { screen, go, viewId, viewUsername, chatId, chatName, closeChat } = useNav();
   const { userId, profile } = useAuth();
   const [me, setMe] = useState(profile);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [notifs, setNotifs] = useState<Notif[]>([]);
 
   useEffect(() => {
     if (!userId) { setMe(profile); return; }
@@ -1109,86 +892,13 @@ function Shell({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('glo-refresh', load);
   }, [userId, profile]);
 
-  useEffect(() => {
-    if (!notifOpen) return;
-    if (!userId) {
-      setNotifs([]);
-      return;
-    }
-
-    let active = true;
-
-    const load = async () => {
-      try {
-        let result: any = await sb
-          .from('notifications')
-          .select('*,actor:profiles(*)')
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (result.error) {
-          result = await sb
-            .from('notifs')
-            .select('*,actor:profiles(*)')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        }
-
-        if (result.error) {
-          result = await sb
-            .from('notifications')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        }
-
-        if (result.error) {
-          result = await sb
-            .from('notifs')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
-            .limit(50);
-        }
-
-        if (active) setNotifs((result.data || []) as Notif[]);
-      } catch {
-        if (active) setNotifs([]);
-      }
-    };
-
-    load();
-    return () => { active = false; };
-  }, [notifOpen, userId]);
-
-  const notifText = (n: Notif) => {
-    const name = n.actor?.display_name || 'Someone';
-    switch (n.type) {
-      case 'like': return `${name} liked your post.`;
-      case 'repost': return `${name} reposted your post.`;
-      case 'follow': return `${name} followed you.`;
-      case 'reply': return `${name} replied to your post.`;
-      default: return `${name} interacted with your content.`;
-    }
-  };
-
   const T: Record<string, string> = { home: 'Glo', explore: 'Explore', profile: 'Profile', user: viewUsername || 'Profile', notifications: 'Notifications', messages: 'Messages', bookmarks: 'Bookmarks', settings: 'Settings', quix: 'Quix chat' };
 
   const nav = (s: string) => {
-    if (s === 'quix') {
-      window.open('https://chat-quix.vercel.app', '_blank', 'noopener,noreferrer');
-      setOpen(false);
-      return;
-    }
-
     if (['messages', 'bookmarks', 'settings', 'profile'].includes(s) && !userId) {
       window.location.href = '/?mode=login';
       return;
     }
-
     go(s);
     setOpen(false);
   };
@@ -1206,6 +916,7 @@ function Shell({ children }: { children: ReactNode }) {
 
   const isHome = screen === 'home';
   const isUser = screen === 'user';
+  const isChat = screen === 'messages' && !!chatId;
 
   return (
     <>
@@ -1238,11 +949,19 @@ function Shell({ children }: { children: ReactNode }) {
         </div>
         <div className="drawer-foot">Glo © 2026</div>
       </nav>
-
+      <aside id="notifDrawer" className={notifOpen ? 'open' : ''}>
+        <div className="notif-drawer-head">
+          <b>Notifications</b>
+          <button className="icon-btn" onClick={() => setNotifOpen(false)} aria-label="Close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg></button>
+        </div>
+        <div className="notif-drawer-body">
+          <div className="empty">No notifications yet.</div>
+        </div>
+      </aside>
       <div className="wrap">
         <header>
-          {isUser ? <button className="icon-btn" onClick={() => go('home')} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
-          <div className={isHome ? 'wordmark' : 'page-title'} style={{ flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isHome ? <>Glo<i>.</i></> : T[screen]}</div>
+          {(isUser || isChat) ? <button className="icon-btn" onClick={() => { if (isChat) { closeChat(); } else { go('home'); } }} aria-label="Back"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg></button> : <button className={`icon-btn burger ${open ? 'open' : ''}`} onClick={() => setOpen(!open)} aria-label="Menu"><span /><span /><span /></button>}
+          <div className={isHome ? 'wordmark' : 'page-title'} style={{ flex: 1, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isHome ? <>Glo<i>.</i></> : isChat ? chatName : T[screen]}</div>
           {isHome && <button className="icon-btn" onClick={() => { if (!userId) { window.location.href = '/?mode=login'; return; } setOpen(false); setNotifOpen(!notifOpen); }} aria-label="Notifications"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg></button>}
           {isUser && (
             <div style={{ position: 'relative' }}>
@@ -1253,7 +972,6 @@ function Shell({ children }: { children: ReactNode }) {
         </header>
         {children}
       </div>
-
       {isHome && (
         <div className="fab-container">
           <div className={`fab-menu ${fabOpen ? 'open' : ''}`}>
@@ -1263,59 +981,6 @@ function Shell({ children }: { children: ReactNode }) {
           <button className={`fab ${fabOpen ? 'open' : ''}`} onClick={() => setFabOpen(!fabOpen)} aria-label="Create"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4"><path d="M12 5v14M5 12h14" /></svg></button>
         </div>
       )}
-
-      <nav
-        id="notifDrawer"
-        style={{
-          position: 'fixed',
-          top: 0,
-          bottom: 0,
-          right: notifOpen ? 0 : -340,
-          width: 320,
-          maxWidth: '88vw',
-          background: 'var(--bg, #000)',
-          borderLeft: '1px solid var(--gbrd-soft, rgba(255,255,255,0.1))',
-          zIndex: 1200,
-          transition: 'right .28s ease',
-          overflowY: 'auto',
-          padding: 16,
-          boxShadow: notifOpen ? '0 0 30px rgba(0,0,0,.35)' : 'none'
-        }}
-        aria-hidden={!notifOpen}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <b style={{ fontSize: 17 }}>Notifications</b>
-          <button className="icon-btn" onClick={() => setNotifOpen(false)} aria-label="Close notifications">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        {!userId ? (
-          <Empty icon={IC.lock} title="This part needs an account" sub="Log in or sign up to join the fun." />
-        ) : notifs.length === 0 ? (
-          <Empty icon={IC.mail} title="No notifications yet" sub="When someone interacts with you, it'll show up here." />
-        ) : (
-          notifs.map((n) => (
-            <div
-              key={n.id}
-              className="rise"
-              style={{ display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--gbrd-soft, rgba(255,255,255,0.08))' }}
-            >
-              {n.actor?.avatar_url ? (
-                <img src={n.actor.avatar_url} alt="" className="avatar avatar-img" style={{ width: 38, height: 38 }} />
-              ) : (
-                <div className={`avatar ${n.actor?.avatar_grad || 'av-1'}`} style={{ width: 38, height: 38 }}>
-                  {(n.actor?.display_name || '?')[0]}
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14.5, color: 'var(--text)' }}>{notifText(n)}</div>
-                {n.created_at && <div style={{ fontSize: 12.5, color: 'var(--dim, #8b98a5)', marginTop: 3 }}>{timeAgo(n.created_at)}</div>}
-              </div>
-            </div>
-          ))
-        )}
-      </nav>
     </>
   );
 }
@@ -1330,6 +995,8 @@ export default function App() {
   const [feedTab, setFeedTab] = useState('foryou');
   const [viewId, setViewId] = useState<string | null>(null);
   const [viewUsername, setViewUsername] = useState('');
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatName, setChatName] = useState('');
 
   const loadUser = async () => {
     const { data: { user } } = await sb.auth.getUser();
@@ -1353,19 +1020,14 @@ export default function App() {
 
   const go = useCallback((s: string) => { setScreen(s); if (s !== 'user') { setViewId(null); setViewUsername(''); } }, []);
   const openUser = useCallback((id: string, username: string) => { setViewId(id); setViewUsername(username); setScreen('user'); }, []);
+  const openChat = useCallback((id: string, name: string) => { setChatId(id); setChatName(name); setScreen('messages'); }, []);
+  const closeChat = useCallback(() => { setChatId(null); setChatName(''); }, []);
 
   // Check URL for auth mode
   const urlParams = new URLSearchParams(window.location.search);
   const authMode = urlParams.get('mode');
-
   if (authMode === 'login' || authMode === 'signup') {
-    return (
-      <ToastCtx.Provider value={toast}>
-        <RippleFx />
-        {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
-        <AuthScreen mode={authMode} />
-      </ToastCtx.Provider>
-    );
+    return <AuthScreen mode={authMode} />;
   }
 
   if (loading) {
@@ -1380,8 +1042,7 @@ export default function App() {
   return (
     <AuthCtx.Provider value={{ userId, profile, reload: loadUser }}>
       <ToastCtx.Provider value={toast}>
-        <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser }}>
-          <RippleFx />
+        <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser, chatId, chatName, openChat, closeChat }}>
           {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
           <Shell>
             <div key={screen} className="screen active">
