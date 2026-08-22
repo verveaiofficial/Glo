@@ -33,6 +33,56 @@ function useRefresh(fn: () => void) {
   }, []);
 }
 
+// ============ GLOBAL FX (RIPPLE + AVATAR FIX) ============
+function RippleFx() {
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .avatar-img { object-fit: contain !important; }
+      .glo-ripple {
+        position: absolute;
+        border-radius: 50%;
+        transform: scale(0);
+        animation: glo-ripple .55s ease-out;
+        background: rgba(255,255,255,.25);
+        pointer-events: none;
+      }
+      @keyframes glo-ripple {
+        to { transform: scale(3.2); opacity: 0; }
+      }
+    `;
+    document.head.appendChild(style);
+
+    const onDown = (e: PointerEvent) => {
+      const btn = (e.target as HTMLElement).closest('button');
+      if (!btn) return;
+
+      const cs = getComputedStyle(btn);
+      if (cs.position === 'static') btn.style.position = 'relative';
+      if (cs.overflow === 'visible') btn.style.overflow = 'hidden';
+
+      const rect = btn.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      const span = document.createElement('span');
+      span.className = 'glo-ripple';
+      span.style.width = size + 'px';
+      span.style.height = size + 'px';
+      span.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      span.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      btn.appendChild(span);
+      setTimeout(() => span.remove(), 600);
+    };
+
+    document.addEventListener('pointerdown', onDown);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      style.remove();
+    };
+  }, []);
+
+  return null;
+}
+
 // ============ SMALL COMPONENTS ============
 function VerifiedBadge({ type }: { type: 'blue' | 'gold' | null }) {
   if (!type) return null;
@@ -1167,6 +1217,7 @@ export default function App() {
   if (authMode === 'login' || authMode === 'signup') {
     return (
       <ToastCtx.Provider value={toast}>
+        <RippleFx />
         {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
         <AuthScreen mode={authMode} />
       </ToastCtx.Provider>
@@ -1186,6 +1237,7 @@ export default function App() {
     <AuthCtx.Provider value={{ userId, profile, reload: loadUser }}>
       <ToastCtx.Provider value={toast}>
         <NavCtx.Provider value={{ screen, go, feedTab, setFeedTab, viewId, viewUsername, openUser }}>
+          <RippleFx />
           {toastMsg && <div id="toast" className="show">{toastMsg}</div>}
           <Shell>
             <div key={screen} className="screen active">
