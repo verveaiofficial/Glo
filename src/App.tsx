@@ -951,8 +951,13 @@ function UserScreen() {
   }, [viewId, userId, tick]);
 
   useEffect(() => {
-    const h = (e: Event) => {
-      if ((e as CustomEvent).detail === viewId) { setFollowing(false); toast('Unfollowed.'); window.dispatchEvent(new Event('glo-refresh')); }
+    const h = async (e: Event) => {
+      if ((e as CustomEvent).detail === viewId) { 
+        await toggleFollow(viewId);
+        setFollowing(false); 
+        toast('Unfollowed.'); 
+        window.dispatchEvent(new Event('glo-refresh')); 
+      }
     };
     window.addEventListener('glo-unfollow', h);
     return () => window.removeEventListener('glo-unfollow', h);
